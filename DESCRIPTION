@@ -1,6 +1,6 @@
 Package: rliger
-Version: 0.5.0
-Date: 2021-01-18
+Version: 1.0.0
+Date: 2021-04-18
 Type: Package
 Title: Linked Inference of Genomic Experimental Relationships
 Description: Uses an extension of nonnegative matrix factorization to identify shared and dataset-specific factors. See Welch J, Kozareva V, et al (2019) <doi:10.1016/j.cell.2019.05.006>, and Liu J, Gao C, Sodicoff J, et al (2020) <doi:10.1038/s41596-020-0391-8> for more details.
@@ -28,13 +28,10 @@ Maintainer: Chao Gao <gchao@umich.edu>
 BugReports: https://github.com/welch-lab/liger/issues
 URL: https://github.com/welch-lab/liger
 License: GPL-3
-SystemRequirements: Java (>= 6)
 Imports: Rcpp (>= 0.12.10), plyr, FNN, dplyr, grid, ggrepel, irlba,
-        ica, Rtsne, ggplot2, riverplot, Hmisc, foreach, parallel,
-        doParallel, mclust, stats, psych, RANN, uwot, rlang, utils,
-        hdf5r
+        ica, Rtsne, ggplot2, riverplot, foreach, parallel, doParallel,
+        mclust, stats, psych, RANN, uwot, rlang, utils, hdf5r
 biocViews:
-LazyData: true
 LinkingTo: Rcpp, RcppArmadillo, RcppEigen, RcppProgress
 Depends: cowplot, Matrix, methods, patchwork
 RoxygenNote: 7.1.1
@@ -43,6 +40,6 @@ Suggests: Seurat, knitr, reticulate, rmarkdown, testthat,
         GenomicRanges, S4Vectors, IRanges, org.Hs.eg.db, reactome.db,
         fgsea, AnnotationDbi
 NeedsCompilation: yes
-Packaged: 2021-01-22 15:47:03 UTC; gchao
+Packaged: 2021-04-19 16:03:11 UTC; gchao
 Repository: CRAN
-Date/Publication: 2021-01-25 13:30:02 UTC
+Date/Publication: 2021-04-19 22:00:12 UTC

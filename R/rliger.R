@@ -438,7 +438,6 @@ restoreOnlineLiger <- function(object, file.path = NULL) {
 #' It initializes cell.data with nUMI and nGene calculated for every cell.
 #'
 #' @param raw.data List of expression matrices (gene by cell). Should be named by dataset.
-#' @param make.sparse Whether to convert raw data into sparse matrices (default TRUE).
 #' @param take.gene.union Whether to fill out raw.data matrices with union of genes across all
 #'   datasets (filling in 0 for missing data) (requires make.sparse = TRUE) (default FALSE).
 #' @param remove.missing Whether to remove cells not expressing any measured genes, and genes not
@@ -466,7 +465,6 @@ restoreOnlineLiger <- function(object, file.path = NULL) {
 
 
 createLiger <- function(raw.data,
-                        make.sparse = TRUE,
                         take.gene.union = FALSE,
                         remove.missing = TRUE,
                         format.type = "10X",
@@ -546,21 +544,20 @@ createLiger <- function(raw.data,
     return(object)
   }
 
-  if (make.sparse) {
-    raw.data <- lapply(raw.data, function(x) {
-      if (class(x)[1] == "dgTMatrix" | class(x)[1] == 'dgCMatrix') {
-        mat <- as(x, 'CsparseMatrix')
-        # Check if dimnames exist
-        if (is.null(x@Dimnames[[1]])) {
-          stop('Raw data must have both row (gene) and column (cell) names.')
-        }
-        mat@Dimnames <- x@Dimnames
-        return(mat)
-      } else {
-        as(as.matrix(x), 'CsparseMatrix')
+  raw.data <- lapply(raw.data, function(x) {
+    if (class(x)[1] == "dgTMatrix" | class(x)[1] == 'dgCMatrix') {
+      mat <- as(x, 'CsparseMatrix')
+      # Check if dimnames exist
+      if (is.null(x@Dimnames[[1]])) {
+        stop('Raw data must have both row (gene) and column (cell) names.')
       }
-    })
-  }
+      mat@Dimnames <- x@Dimnames
+      return(mat)
+    } else {
+      as(as.matrix(x), 'CsparseMatrix')
+    }
+  })
+
   if (length(Reduce(intersect, lapply(raw.data, colnames))) > 0 & length(raw.data) > 1) {
     stop('At least one cell name is repeated across datasets; please make sure all cell names
          are unique.')
@@ -643,6 +640,9 @@ safe_h5_create = function(object, idx, dataset_name, dims, mode="double", chunk_
 #' @param object \code{liger} object.
 #' @param chunk size of chunks in hdf5 file. (default 1000)
 #' @param format.type string of HDF5 format (10X CellRanger by default).
+#' @param remove.missing Whether to remove cells not expressing any measured genes, and genes not
+#'   expressed in any cells (if take.gene.union = TRUE, removes only genes not expressed in any
+#'   dataset) (default TRUE).
 #' @param verbose Print progress bar/messages (TRUE by default)
 #'
 #' @return \code{liger} object with norm.data slot set.
@@ -660,6 +660,7 @@ safe_h5_create = function(object, idx, dataset_name, dims, mode="double", chunk_
 normalize <- function(object,
                       chunk = 1000,
                       format.type = "10X",
+                      remove.missing = TRUE,
                       verbose = TRUE) {
   if (class(object@raw.data[[1]])[1] == "H5File") {
     hdf5_files = names(object@raw.data)
@@ -749,7 +750,9 @@ normalize <- function(object,
 
     names(object@norm.data) = names(object@raw.data)
   } else {
-    object <- removeMissingObs(object, slot.use = "raw.data", use.cols = TRUE, verbose = verbose)
+    if (remove.missing) {
+      object <- removeMissingObs(object, slot.use = "raw.data", use.cols = TRUE)
+    }
     if (class(object@raw.data[[1]])[1] == "dgTMatrix" |
         class(object@raw.data[[1]])[1] == "dgCMatrix") {
       object@norm.data <- lapply(object@raw.data, Matrix.column_norm)
@@ -1134,20 +1137,14 @@ scaleNotCenter <- function(object, remove.missing = TRUE, chunk = 1000, verbose 
     }
     names(object@scale.data) <- names(object@raw.data)
   } else {
-    if (class(object@raw.data[[1]])[1] == "dgTMatrix" |
-        class(object@raw.data[[1]])[1] == "dgCMatrix") {
-      object@scale.data <- lapply(1:length(object@norm.data), function(i) {
-        scaleNotCenterFast(t(object@norm.data[[i]][object@var.genes, ]))
-      })
-      # TODO: Preserve sparseness later on (convert inside optimizeALS)
-      object@scale.data <- lapply(object@scale.data, function(x) {
-        as.matrix(x)
-      })
-    } else {
-      object@scale.data <- lapply(1:length(object@norm.data), function(i) {
-        scale(t(object@norm.data[[i]][object@var.genes, ]), center = FALSE, scale = TRUE)
-      })
-    }
+    object@scale.data <- lapply(1:length(object@norm.data), function(i) {
+      scaleNotCenterFast(t(object@norm.data[[i]][object@var.genes, ]))
+    })
+    # TODO: Preserve sparseness later on (convert inside optimizeALS)
+    object@scale.data <- lapply(object@scale.data, function(x) {
+      as.matrix(x)
+    })
+      
     names(object@scale.data) <- names(object@norm.data)
     for (i in 1:length(object@scale.data)) {
       object@scale.data[[i]][is.na(object@scale.data[[i]])] <- 0
@@ -1159,7 +1156,6 @@ scaleNotCenter <- function(object, remove.missing = TRUE, chunk = 1000, verbose 
       object <- removeMissingObs(object, slot.use = "scale.data", use.cols = FALSE, verbose = verbose)
     }
   }
-
   return(object)
 }
 
@@ -3402,8 +3398,8 @@ runWilcoxon <- function(object, data.use = "all", compare.method) {
   }
 
   ### create feature x sample matrix
-  if (data.use == "all" | length(data.use) > 1) { # at least two datasets
-    if (data.use == "all") {
+  if (data.use[1] == "all" | length(data.use) > 1) { # at least two datasets
+    if (data.use[1] == "all") {
       message("Performing Wilcoxon test on ALL datasets: ", toString(names(object@norm.data)))
       sample.list <- attributes(object@norm.data)$names
     }
@@ -3872,7 +3868,7 @@ runGSEA <- function(object, gene_sets = c(), mat_w = TRUE, mat_v = 0, custom_gen
 #' # get tsne.coords for normalized data
 #' ligerex <- runTSNE(ligerex)
 #' # get tsne.coords for raw factor loadings
-#' ligerex <- runTSNE(ligerex, use.raw = T)
+#' ligerex <- runTSNE(ligerex, use.raw = TRUE)
 #' }
 
 runTSNE <- function(object, use.raw = FALSE, dims.use = 1:ncol(object@H.norm), use.pca = FALSE,
@@ -3952,7 +3948,7 @@ runTSNE <- function(object, use.raw = FALSE, dims.use = 1:ncol(object@H.norm), u
 #' # get tsne.coords for normalized data
 #' ligerex <- runUMAP(ligerex)
 #' # get tsne.coords for raw factor loadings
-#' ligerex <- runUMAP(ligerex, use.raw = T)
+#' ligerex <- runUMAP(ligerex, use.raw = TRUE)
 #' }
 
 runUMAP <- function(object, use.raw = FALSE, dims.use = 1:ncol(object@H.norm), k = 2,
@@ -4362,9 +4358,9 @@ calcAlignmentPerCluster <- function(object, rand.seed = 1, k = NULL, by.dataset 
 #' # ligerex (liger object), factorization complete
 #' ligerex <- quantile_norm(ligerex)
 #' # toy clusters
-#' cluster1 <- sample(c('type1', 'type2', 'type3'), ncol(ligerex@raw.data[[1]]), replace = T)
+#' cluster1 <- sample(c('type1', 'type2', 'type3'), ncol(ligerex@raw.data[[1]]), replace = TRUE)
 #' names(cluster1) <- colnames(ligerex@raw.data[[1]])
-#' cluster2 <- sample(c('type4', 'type5', 'type6'), ncol(ligerex@raw.data[[2]]), replace = T)
+#' cluster2 <- sample(c('type4', 'type5', 'type6'), ncol(ligerex@raw.data[[2]]), replace = TRUE)
 #' names(cluster2) <- colnames(ligerex@raw.data[[2]])
 #' # get ARI for first clustering
 #' ari1 <- calcARI(ligerex, cluster1)
@@ -4399,9 +4395,9 @@ calcARI <- function(object, clusters.compare, verbose = TRUE) {
 #' # ligerex (liger object), factorization complete
 #' ligerex <- quantile_norm(ligerex)
 #' # toy clusters
-#' cluster1 <- sample(c('type1', 'type2', 'type3'), ncol(ligerex@raw.data[[1]]), replace = T)
+#' cluster1 <- sample(c('type1', 'type2', 'type3'), ncol(ligerex@raw.data[[1]]), replace = TRUE)
 #' names(cluster1) <- colnames(ligerex@raw.data[[1]])
-#' cluster2 <- sample(c('type4', 'type5', 'type6'), ncol(ligerex@raw.data[[2]]), replace = T)
+#' cluster2 <- sample(c('type4', 'type5', 'type6'), ncol(ligerex@raw.data[[2]]), replace = TRUE)
 #' names(cluster2) <- colnames(ligerex@raw.data[[2]])
 #' # get ARI for first clustering
 #' ari1 <- calcPurity(ligerex, cluster1)
@@ -4492,7 +4488,7 @@ getProportionMito <- function(object, use.norm = FALSE) {
 #' # plot to console
 #' plotByDatasetAndCluster(ligerex)
 #' # return list of plots
-#' plots <- plotByDatasetAndCluster(ligerex, return.plots = T)
+#' plots <- plotByDatasetAndCluster(ligerex, return.plots = TRUE)
 #' }
 
 plotByDatasetAndCluster <- function(object, clusters = NULL, title = NULL, pt.size = 0.3,
@@ -4547,12 +4543,12 @@ plotByDatasetAndCluster <- function(object, clusters = NULL, title = NULL, pt.si
     p1 <- p1 + xlab(axis.labels[1]) + ylab(axis.labels[2])
     p2 <- p2 + xlab(axis.labels[1]) + ylab(axis.labels[2])
   }
+  p1 <- p1 + theme_cowplot(12)
+  p2 <- p2 + theme_cowplot(12)
   if (!do.legend) {
     p1 <- p1 + theme(legend.position = "none")
     p2 <- p2 + theme(legend.position = "none")
   }
-  p1 <- p1 + theme_cowplot(12)
-  p2 <- p2 + theme_cowplot(12)
   if (return.plots) {
     return(list(p1, p2))
   } else {
@@ -4892,7 +4888,7 @@ plotWordClouds <- function(object, dataset1 = NULL, dataset2 = NULL, num.genes =
       if (length(top_genes) == 0) {
         gene_df <- data.frame(genes = c("no genes"), loadings = c(1))
       }
-      out_plot <- ggplot(gene_df, aes(x = 1, y = 1, size = loadings, label = gene_df[['genes']])) +
+      out_plot <- ggplot(gene_df, aes(x = 1, y = 1, size = loadings, label = .data[['genes']])) +
         geom_text_repel(force = 100, segment.color = NA) +
         scale_size(range = c(min.size, max.size), guide = FALSE) +
         scale_y_continuous(breaks = NULL) +
@@ -5172,10 +5168,10 @@ plotGeneLoadings <- function(object, dataset1 = NULL, dataset2 = NULL, num.genes
 #' \dontrun{
 #' # ligerex (liger object based on in-memory datasets), factorization complete
 #' # plot expression for CD4 and return plots
-#' violin_plots <- plotGeneViolin(ligerex, "CD4", return.plots = T)
+#' violin_plots <- plotGeneViolin(ligerex, "CD4", return.plots = TRUE)
 #' # ligerex (liger object based on datasets in HDF5 format), factorization complete input
 #' ligerex <- readSubset(ligerex, slot.use = "norm.data", max.cells = 5000)
-#' violin_plots <- plotGeneViolin(ligerex, "CD4", return.plots = T)
+#' violin_plots <- plotGeneViolin(ligerex, "CD4", return.plots = TRUE)
 #' }
 
 plotGeneViolin <- function(object, gene, methylation.indices = NULL,
@@ -5312,10 +5308,10 @@ plotGeneViolin <- function(object, gene, methylation.indices = NULL,
 #' ligerex
 #' ligerex <- runTSNE(ligerex)
 #' # plot expression for CD4 and return plots
-#' gene_plots <- plotGene(ligerex, "CD4", return.plots = T)
+#' gene_plots <- plotGene(ligerex, "CD4", return.plots = TRUE)
 #' # ligerex (liger object based on datasets in HDF5 format), factorization complete input
 #' ligerex <- readSubset(ligerex, slot.use = "norm.data", max.cells = 5000)
-#' gene_plots <- plotGene(ligerex, "CD4", return.plots = T)
+#' gene_plots <- plotGene(ligerex, "CD4", return.plots = TRUE)
 #' }
 
 plotGene <- function(object, gene, use.raw = FALSE, use.scaled = FALSE, scale.by = 'dataset',
@@ -5604,9 +5600,9 @@ plotGenes <- function(object, genes, ...) {
 #' \dontrun{
 #' # ligerex (liger object), factorization complete input
 #' # toy clusters
-#' cluster1 <- sample(c('type1', 'type2', 'type3'), ncol(ligerex@raw.data[[1]]), replace = T)
+#' cluster1 <- sample(c('type1', 'type2', 'type3'), ncol(ligerex@raw.data[[1]]), replace = TRUE)
 #' names(cluster1) <- colnames(ligerex@raw.data[[1]])
-#' cluster2 <- sample(c('type4', 'type5', 'type6'), ncol(ligerex@raw.data[[2]]), replace = T)
+#' cluster2 <- sample(c('type4', 'type5', 'type6'), ncol(ligerex@raw.data[[2]]), replace = TRUE)
 #' names(cluster2) <- colnames(ligerex@raw.data[[2]])
 #' # create riverplot
 #' makeRiverplot(ligerex, cluster1, cluster2)
@@ -5821,7 +5817,7 @@ plotClusterProportions <- function(object, return.plot = FALSE) {
 #' \dontrun{
 #' # ligerex (liger object), factorization complete input
 #' # plot expression for CD4 and return plots
-#' loading.matrix <- plotClusterFactors(ligerex, return.data = T)
+#' loading.matrix <- plotClusterFactors(ligerex, return.data = TRUE)
 #' }
 
 plotClusterFactors <- function(object, use.aligned = FALSE, Rowv = NA, Colv = "Rowv", col = NULL,
