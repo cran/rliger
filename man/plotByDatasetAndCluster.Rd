@@ -18,7 +18,8 @@ plotByDatasetAndCluster(
   reorder.idents = FALSE,
   new.order = NULL,
   return.plots = FALSE,
-  legend.fonts.size = 12
+  legend.fonts.size = 12,
+  raster = NULL
 )
 }
 \arguments{
@@ -51,6 +52,9 @@ one after the other (default TRUE).}
 \item{return.plots}{Return ggplot plot objects instead of printing directly (default FALSE).}
 
 \item{legend.fonts.size}{Controls the font size of the legend.}
+
+\item{raster}{Rasterization of points (default NULL). Automatically convert to raster format if
+there are over 100,000 cells to plot.}
 }
 \value{
 List of ggplot plot objects (only if return.plots TRUE, otherwise prints plots to
@@ -64,13 +68,13 @@ single color for second plot. It is also possible to pass in another clustering 
 names match those of cells).
 }
 \examples{
-\dontrun{
-# ligerex (liger object), factorization complete
-# get tsne.coords for normalized data
+ligerex <- createLiger(list(ctrl = ctrl, stim = stim))
+ligerex <- normalize(ligerex)
+ligerex <- selectGenes(ligerex)
+ligerex <- scaleNotCenter(ligerex)
+ligerex <- optimizeALS(ligerex, k = 5, max.iter = 1)
+ligerex <- quantile_norm(ligerex)
 ligerex <- runTSNE(ligerex)
-# plot to console
-plotByDatasetAndCluster(ligerex)
-# return list of plots
-plots <- plotByDatasetAndCluster(ligerex, return.plots = TRUE)
-}
+ligerex <- louvainCluster(ligerex)
+plotByDatasetAndCluster(ligerex, pt.size = 1)
 }

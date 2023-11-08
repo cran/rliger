@@ -13,7 +13,8 @@ louvainCluster(
   nRandomStarts = 10,
   nIterations = 100,
   random.seed = 1,
-  verbose = TRUE
+  verbose = TRUE,
+  dims.use = NULL
 )
 }
 \arguments{
@@ -39,6 +40,8 @@ prune everything). (default 1/15)}
 \item{random.seed}{Seed of the random number generator. (default 1)}
 
 \item{verbose}{Print messages (TRUE by default)}
+
+\item{dims.use}{Indices of factors to use for Louvain clustering (default 1:ncol(H[[1]])).}
 }
 \value{
 \code{liger} object with refined 'clusters' slot set.
@@ -49,9 +52,11 @@ for community detection, which is widely used in single-cell analysis and excels
 small clusters into broad cell classes.
 }
 \examples{
-\dontrun{
-# ligerex (liger object), factorization complete
-ligerex <- louvainCluster(ligerex, resulotion = 0.3)
-}
-
+ligerex <- createLiger(list(ctrl = ctrl, stim = stim))
+ligerex <- normalize(ligerex)
+ligerex <- selectGenes(ligerex)
+ligerex <- scaleNotCenter(ligerex)
+ligerex <- optimizeALS(ligerex, k = 5, max.iters = 1)
+ligerex <- quantile_norm(ligerex)
+ligerex <- louvainCluster(ligerex, resolution = 0.3)
 }
