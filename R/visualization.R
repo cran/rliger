@@ -2,8 +2,7 @@
 # Scatter Plots of DimRed ####
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-#' Generate Dimensionality Reduction Plot with Coloring
-#' @description some text
+#' @rdname plotDimRed
 #' @param object A \linkS4class{liger} object.
 #' @param useCluster Name of variable in \code{cellMeta(object)}. Default
 #' \code{NULL} uses default cluster.
@@ -30,10 +29,6 @@
 #' for gene expression and \code{"D"} ("viridis") for factor loading.
 #' @return ggplot object when only one feature (e.g. cluster variable, gene,
 #' factor) is set. List object when multiple of those are specified.
-#' @seealso Please refer to \code{\link{plotDimRed}},
-#' \code{\link{.ggScatter}}, \code{\link{.ggplotLigerTheme}} for additional
-#' graphic setting
-#' @rdname plotDimRed
 #' @export
 #' @examples
 #' plotClusterDimRed(pbmcPlot)
@@ -182,13 +177,10 @@ plotFactorDimRed <- function(
 #' \code{\link[cowplot]{plot_grid}}.
 #' @param legendNRow Arrangement of the legend, number of rows. Default
 #' \code{1}.
-#' @param ... Additional graphic setting arguments passed to
-#' \code{\link{plotDimRed}}.
+#' @inheritDotParams .ggScatter shapeBy dotOrder dotSize dotAlpha raster labelText labelTextSize seed
+#' @inheritDotParams .ggplotLigerTheme subtitle baseSize titleSize subtitleSize xTextSize xTitleSize yTextSize yTitleSize panelBorder colorValues naColor plotly
 #' @return ggplot object when only one feature (e.g. cluster variable, gene,
 #' factor) is set. List object when multiple of those are specified.
-#' @seealso Please refer to \code{\link{plotDimRed}},
-#' \code{\link{.ggScatter}}, \code{\link{.ggplotLigerTheme}} for additional
-#' graphic setting
 #' @export
 #' @examples
 #' plotGroupClusterDimRed(pbmcPlot)
@@ -274,6 +266,9 @@ plotGroupClusterDimRed <- function(
 #' @param groupBy Names of available categorical variable in \code{cellMeta}
 #' slot. Use \code{FALSE} for no grouping. Default \code{NULL} looks clustering
 #' result but will not group if no clustering found.
+#' @inheritDotParams plotCellViolin slot yFunc cellIdx titles
+#' @inheritDotParams .ggCellViolin violin violinAlpha violinWidth box boxAlpha boxWidth dot dotColor dotSize xlabAngle raster seed
+#' @inheritDotParams .ggplotLigerTheme subtitle xlab ylab legendFillTitle showLegend legendPosition baseSize titleSize subtitleSize xTextSize xTitleSize yTextSize yTitleSize legendTextSize legendTitleSize legendNRow legendNCol colorLabels colorValues panelBorder plotly
 #' @param ... Additional arguments passed to \code{\link{plotCellViolin}}.
 #' @return ggplot if using a single gene and not splitting by dataset.
 #' Otherwise, list of ggplot.
@@ -332,6 +327,151 @@ plotGeneDetectedViolin <- function(
                    ylab = "Number of Genes Detected", ...)
 }
 
+
+#' Create violin plot for multiple genes grouped by clusters
+#' @description
+#' Make violin plots for each given gene grouped by cluster variable and stack
+#' along y axis.
+#'
+#' @details
+#' If \code{xlab} need to be set, set \code{xlabAngle} at the same time. This is
+#' due to that the argument parsing mechanism will partially match it to main
+#' function arguments before matching the \code{...} arguments.
+#' @param object A \linkS4class{liger} object.
+#' @param gene Character vector of gene names.
+#' @param groupBy The name of an available categorical variable in
+#' \code{cellMeta} slot. This forms the main x-axis columns. Use \code{FALSE}
+#' for no grouping. Default \code{NULL} looks clustering result but will not
+#' group if no clustering is found.
+#' @param colorBy The name of another categorical variable in \code{cellMeta}
+#' slot. This split the main grouping columns and color the violins. Default
+#' \code{NULL} will not split and color the violins.
+#' @param box Logical, whether to add boxplot. Default \code{FALSE}.
+#' @param boxAlpha Numeric, transparency of boxplot. Default \code{0.1}.
+#' @param yFunc Function to transform the y-axis. Default is
+#' \code{log1p(x*1e4)}. Set to \code{NULL} for no transformation.
+#' @param showLegend Whether to show the legend. Default \code{FALSE}.
+#' @param xlabAngle Numeric, counter-clockwise rotation angle in degrees of X
+#' axis label text. Default \code{40}.
+#' @inheritDotParams .ggplotLigerTheme title subtitle xlab ylab legendFillTitle legendPosition baseSize titleSize xTitleSize yTitleSize legendTitleSize subtitleSize xTextSize yTextSize legendTextSize yFacetSize panelBorder legendNRow legendNCol colorLabels colorValues plotly
+#' @return A ggplot object.
+#' @export
+#' @examples
+#' plotClusterGeneViolin(pbmcPlot, varFeatures(pbmcPlot)[1:10])
+plotClusterGeneViolin <- function(
+        object,
+        gene,
+        groupBy = NULL,
+        colorBy = NULL,
+        box = FALSE,
+        boxAlpha = 0.1,
+        yFunc = function(x) log1p(x*1e4),
+        showLegend = !is.null(colorBy),
+        xlabAngle = 40,
+        ...
+) {
+    groupBy <-  groupBy %||% object@uns$defaultCluster
+    gene <- unique(gene)
+    featureDF <- retrieveCellFeature(object, gene, slot = "normData")
+    # Account for the case where the gene is not detected in any cell
+    ngene <- ncol(featureDF)
+    geneUse <- gene[gene %in% colnames(featureDF)]
+    if (!is.null(yFunc)) featureDF <- as.data.frame(apply(featureDF, 2, yFunc))
+    if (!isFALSE(groupBy)) {
+        featureDF[[groupBy]] <- .fetchCellMetaVar(
+            object = object,
+            variables = groupBy,
+            checkCategorical = TRUE
+        )
+    } else {
+        groupBy <- "group"
+        featureDF[[groupBy]] <- factor("All")
+    }
+    if (!is.null(colorBy)) {
+        colorVar <- .fetchCellMetaVar(
+            object = object, variables = colorBy, checkCategorical = TRUE
+        )
+        featureDF[[colorBy]] <- factor(colorVar)
+    }
+
+    featureDF <- featureDF %>%
+        .pivot_longer(
+            cols = seq(ngene),
+            names_to = "gene",
+            values_to = "Expression"
+        ) %>%
+        dplyr::mutate(gene = factor(.data[["gene"]], levels = geneUse))
+    if (!is.null(colorBy)) {
+        p <- ggplot2::ggplot(
+            data = featureDF,
+            mapping = ggplot2::aes(
+                x = .data[[groupBy]],
+                y = .data[["Expression"]],
+                fill = .data[[colorBy]]
+            ))
+    } else {
+        p <- ggplot2::ggplot(
+            data = featureDF,
+            mapping = ggplot2::aes(
+                x = .data[[groupBy]],
+                y = .data[["Expression"]],
+                fill = .data[[groupBy]]
+            ))
+    }
+    p <- p + ggplot2::geom_violin()
+    if (isTRUE(box)) {
+        p <- p + ggplot2::geom_boxplot(alpha = boxAlpha)
+    }
+    p <- p +
+        ggplot2::facet_wrap(
+            stats::formula("~gene"),
+            scales = "free_y",
+            nrow = ngene,
+            strip.position = "left"
+        )
+    .ggplotLigerTheme(
+        p,
+        showLegend = showLegend,
+        xlabAngle = xlabAngle,
+        ...
+    )
+}
+
+
+
+
+#' Create barcode-rank plot for each dataset
+#' @description
+#' This function ranks the total count of each cell within each dataset and make
+#' line plot. This function is simply for examining the input raw count data
+#' and does not infer any recommended cutoff for removing non-cell barcodes.
+#' @param object A \linkS4class{liger} object.
+#' @inheritDotParams .ggScatter dotSize dotAlpha raster
+#' @inheritDotParams .ggplotLigerTheme title subtitle xlab ylab baseSize titleSize subtitleSize xTextSize xTitleSize yTextSize yTitleSize panelBorder plotly
+#' @export
+#' @return A list object of ggplot for each dataset
+#' @examples
+#' plotBarcodeRank(pbmc)
+plotBarcodeRank <- function(
+        object,
+        ...
+) {
+    pl <- list()
+    for (d in names(object)) {
+        df <- data.frame(
+            rank = seq_len(lengths(object)[d]),
+            nUMI = sort(
+                cellMeta(object, columns = "nUMI", useDatasets = d),
+                decreasing = TRUE
+            )
+        )
+        pl[[d]] <- .ggScatter(df, x = "rank", y = "nUMI", ...) +
+            ggplot2::scale_y_log10() +
+            ggplot2::scale_x_log10() +
+            ggplot2::geom_line()
+    }
+    pl
+}
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Proportion #####
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -344,7 +484,8 @@ plotGeneDetectedViolin <- function(
 #' plot.
 #'
 #' Having package "ggrepel" installed can help adding tidier percentage
-#' annotation on the pie chart.
+#' annotation on the pie chart. Run \code{options(ggrepel.max.overlaps = n)}
+#' before plotting to set allowed label overlaps.
 #' @param object A \linkS4class{liger} object.
 #' @param class1,class2 Each should be a single name of a categorical variable
 #' available in \code{cellMeta} slot. Number of cells in each categories in
@@ -353,8 +494,9 @@ plotGeneDetectedViolin <- function(
 #' "dataset"}.
 #' @param method For bar plot, choose whether to draw \code{"stack"} or
 #' \code{"group"} bar plot. Default \code{"stack"}.
-#' @param showLegend,panelBorder,... ggplot theme setting arguments passed to
-#' \code{\link{.ggplotLigerTheme}}.
+#' @param showLegend Whether to show the legend. Default \code{TRUE}.
+#' @param panelBorder Whether to show rectangle border of the panel instead of
+#' using ggplot classic bottom and left axis lines. Default \code{FALSE}.
 #' @param inclRev Logical, for barplot, whether to reverse the specification for
 #' \code{class1} and \code{class2} and produce two plots. Default \code{FALSE}.
 #' @param combinePlot Logical, whether to combine the two plots with
@@ -364,7 +506,8 @@ plotGeneDetectedViolin <- function(
 #' while \code{class2} is hardcoded with \code{"dataset"}.
 #' @param labelSize,labelColor Settings on pie chart percentage label. Default
 #' \code{4} and \code{"white"}.
-#' @param return.plot \bold{defuncted}.
+#' @inheritDotParams .ggplotLigerTheme title subtitle xlab ylab legendFillTitle showLegend legendPosition baseSize titleSize subtitleSize xTextSize xTitleSize yTextSize yTitleSize legendTextSize legendTitleSize panelBorder legendNRow legendNCol colorLabels colorValues colorPalette colorDirection naColor colorLow colorMid colorHigh colorMidPoint plotly
+#' @param return.plot `r lifecycle::badge("defunct")`
 #' @return ggplot or list of ggplot
 #' @rdname plotProportion
 #' @export
@@ -501,13 +644,17 @@ plotClusterProportions <- function(
 }
 
 #' @rdname plotProportion
+#' @param circleColors Character vector of colors. \code{plotProportionPie}
+#' parameter for setting the colors of circles, i.e. categorical variable
+#' controlled by \code{class2}. Default \code{NULL} uses ggplot default hues.
 #' @export
 plotProportionPie <- function(
         object,
         class1 = NULL,
         class2 = "dataset",
         labelSize = 4,
-        labelColor = "white",
+        labelColor = "black",
+        circleColors = NULL,
         ...
 ) {
     class1 <- class1 %||% object@uns$defaultCluster
@@ -543,6 +690,13 @@ plotProportionPie <- function(
                                    colour = .data[[class2]]),
             linewidth = 2
         )
+    if (!is.null(circleColors)) {
+        if (length(circleColors) < length(class2Uniq)) {
+            cli::cli_alert_warning("Less {.field circleColors} ({.val {length(circleColors)}}) specified than required from {.val {class2}} ({.val {length(class2Uniq)}}). Using default.")
+        } else {
+            p <- p + ggplot2::scale_color_manual(values = circleColors)
+        }
+    }
 
     if (!requireNamespace("ggrepel", quietly = TRUE)) {
         p <- p + ggplot2::geom_text(
@@ -551,8 +705,8 @@ plotProportionPie <- function(
         )
     } else {
         p <- p + ggrepel::geom_text_repel(
-            size = labelSize, color = labelColor, force = 0.001, max.overlaps = 4,
-            position = ggplot2::position_nudge(y = 0.25)
+            size = labelSize, color = labelColor, force = 1,
+            nudge_y = 0.25, bg.colour = "white"
         )
     }
     .ggplotLigerTheme(p, ...) +
@@ -566,26 +720,182 @@ plotProportionPie <- function(
         )
 }
 
+#' Box plot of cluster proportion in each dataset, grouped by condition
+#' @description
+#' This function calculate the proportion of each category (e.g. cluster, cell
+#' type) within each dataset, and then make box plot grouped by condition. The
+#' proportion of all categories within one dataset sums up to 1. The condition
+#' variable must be a variable of dataset, i.e. each dataset must belong to only
+#' one condition.
+#'
+#' @param object A \linkS4class{liger} object.
+#' @param useCluster Name of variable in \code{cellMeta(object)}. Default
+#' \code{NULL} uses default cluster.
+#' @param conditionBy Name of the variable in \code{cellMeta(object)} that
+#' represents the condition. Must be a high level variable of the
+#' \code{sampleBy} variable, i.e. each sample must belong to only one condition.
+#' Default \code{NULL} does not group samples by condition.
+#' @param sampleBy Name of the variable in \code{cellMeta(object)} that
+#' represents individual samples. Default \code{"dataset"}.
+#' @param splitByCluster Logical, whether to split the wide grouped box plot by
+#' cluster, into a list of boxplots for each cluster. Default \code{FALSE}.
+#' @param dot Logical, whether to add dot plot on top of the box plot. Default
+#' \code{FALSE}.
+#' @param dotSize Size of the dot. Default uses user option "ligerDotSize", or
+#' \code{1} if not set.
+#' @param dotJitter Logical, whether to jitter the dot to avoid overlapping
+#' within a box when many dots are presented. Default \code{FALSE}.
+#' @inheritDotParams .ggplotLigerTheme title subtitle xlab ylab legendFillTitle showLegend legendPosition baseSize titleSize subtitleSize xTextSize xTitleSize yTextSize yTitleSize legendTextSize legendTitleSize panelBorder legendNRow legendNCol colorLabels colorValues colorPalette colorDirection naColor colorLow colorMid colorHigh colorMidPoint plotly
+#' @export
+#' @return A ggplot object or a list of ggplot objects if
+#' \code{splitByCluster = TRUE}.
+#' @examples
+#' # "boxes" are expected to appear as horizontal lines, because there's no
+#' # "condition" variable that groups the datasets in the example object, and
+#' # thus only one value exists for each "box".
+#' plotProportionBox(pbmcPlot, conditionBy = "dataset")
+plotProportionBox <- function(
+        object,
+        useCluster = NULL,
+        conditionBy = NULL,
+        sampleBy = "dataset",
+        splitByCluster = FALSE,
+        dot = FALSE,
+        dotSize = getOption("ligerDotSize", 1),
+        dotJitter = FALSE,
+        ...
+) {
+    useCluster <- useCluster %||% object@uns$defaultCluster
+    if (is.null(useCluster)) {
+        cli::cli_abort("No cluster specified nor default set.")
+    }
+    clusterVar <- .fetchCellMetaVar(object, useCluster, checkCategorical = TRUE)
+    datasetVar <- .fetchCellMetaVar(object, sampleBy, checkCategorical = TRUE)
+    compositionTable <- table(datasetVar, clusterVar)
+    dfLong <- data.frame(compositionTable)
+    names(dfLong) <- c(sampleBy, useCluster, "Count")
+
+    if (!is.null(conditionBy)) {
+        conditionVar <- .fetchCellMetaVar(
+            object = object, variables = conditionBy, checkCategorical = TRUE
+        )
+        # Check that condition variable is strictly a high level variable of dataset
+        if (!all(rowSums(table(datasetVar, conditionVar) > 0) == 1)) {
+            cli::cli_abort("Condition variable must be a high level variable of the datasets, i.e. each dataset must belong to only one condition.")
+        }
+
+        conditionTable <- table(datasetVar, conditionVar)
+        conditionMap <- apply(
+            conditionTable,
+            MARGIN = 1,
+            function(row) colnames(conditionTable)[row > 0]
+        )
+
+        dfLong[[conditionBy]] <- factor(
+            conditionMap[dfLong[[sampleBy]]],
+            levels = levels(conditionVar)
+        )
+    }
+
+    dfLong %<>%
+        dplyr::group_by(dataset) %>%
+        dplyr::mutate(
+            Proportion = .data[["Count"]] / sum(.data[["Count"]]),
+        )
+    if (isTRUE(splitByCluster)) {
+        plist <- lapply(levels(clusterVar), function(cluster) {
+            p <- ggplot2::ggplot(
+                data = dfLong[dfLong[[useCluster]] == cluster, ],
+                mapping = (
+                    if (!is.null(conditionBy))
+                        ggplot2::aes(
+                            x = .data[[conditionBy]],
+                            y = .data[["Proportion"]],
+                            fill = .data[[conditionBy]]
+                        )
+                    else ggplot2::aes(
+                        x = .data[[useCluster]],
+                        y = .data[["Proportion"]]
+                    )
+                )
+            ) + (
+                if (isTRUE(dot))
+                    ggplot2::geom_point(
+                        size = dotSize,
+                        color = "black",
+                        position =
+                            if (isTRUE(dotJitter)) ggplot2::position_jitter()
+                        else "identity"
+                    )
+                else
+                    NULL
+            ) +
+                ggplot2::geom_boxplot() +
+                ggplot2::ggtitle(paste0(useCluster, ": ", cluster))
+            return(.ggplotLigerTheme(p, ...))
+        })
+        names(plist) <- levels(clusterVar)
+        return(plist)
+    } else {
+        p <- ggplot2::ggplot(
+            data = dfLong,
+            mapping = (
+                if (!is.null(conditionBy))
+                    ggplot2::aes(
+                        x = .data[[useCluster]],
+                        y = .data[["Proportion"]],
+                        fill = .data[[conditionBy]]
+                    )
+                else ggplot2::aes(
+                    x = .data[[useCluster]],
+                    y = .data[["Proportion"]]
+                )
+            )
+        ) +
+            (if (isTRUE(dot))
+                ggplot2::geom_point(
+                    size = dotSize,
+                    color = "black",
+                    position =
+                        if (isTRUE(dotJitter)) ggplot2::position_jitter()
+                    else "identity"
+                )
+             else
+                 NULL) +
+            ggplot2::geom_boxplot()
+        return(.ggplotLigerTheme(p, ...))
+    }
+
+}
+
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Volcano plot ####
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 #' Create volcano plot for Wilcoxon test result
-#' @description \code{plotVolcano} is a simple implementation and shares
-#' most of arguments with other rliger plotting functions.
-#' \code{plotEnhancedVolcano} is a wrapper function of
-#' \code{EnhancedVolcano::EnhancedVolcano()}, which has provides
-#' substantial amount of arguments for graphical control. However, that requires
-#' the installation of package "EnhancedVolcano".
-#' @rdname plotVolcano
-#' @param result Data frame table returned by \code{\link{runWilcoxon}}
-#' @param group Selection of one group available from \code{result$group}
+#' @description
+#' \code{plotVolcano} is a simple implementation and shares most of arguments
+#' with other rliger plotting functions. \code{plotEnhancedVolcano} is a
+#' wrapper function of \code{EnhancedVolcano::EnhancedVolcano()}, which has
+#' provides substantial amount of arguments for graphical control. However, that
+#' requires the installation of package "EnhancedVolcano".
+#'
+#' \code{highlight} and \code{labelTopN} both controls the feature name
+#' labeling, whereas \code{highlight} is considered first. If both are as
+#' default (\code{NULL}), all significant features will be labeled.
+#' @param result Data frame table returned by \code{\link{runMarkerDEG}} or
+#' \code{\link{runPairwiseDEG}}.
+#' @param group Selection of one group available from \code{result$group}. If
+#' only one group is available from \code{result}, default \code{NULL} uses it.
 #' @param logFCThresh Number for the threshold on the absolute value of the log2
 #' fold change statistics. Default \code{1}.
 #' @param padjThresh Number for the threshold on the adjusted p-value
 #' statistics. Default \code{0.01}.
+#' @param highlight A character vector of feature names to be highlighted.
+#' Default \code{NULL}.
 #' @param labelTopN Number of top differential expressed features to be labeled
-#' on the top of the dots. Default \code{20}.
+#' on the top of the dots. Ranked by adjusted p-value first and absolute value
+#' of logFC next. Default \code{NULL}.
 #' @param dotSize,dotAlpha Numbers for universal aesthetics control of dots.
 #' Default \code{2} and \code{0.8}.
 #' @param legendPosition Text indicating where to place the legend. Choose from
@@ -593,56 +903,92 @@ plotProportionPie <- function(
 #' \code{"top"}.
 #' @param labelSize Size of labeled top features and line annotations. Default
 #' \code{4}.
-#' @param ... For \code{plotVolcano}, more theme setting arguments passed to
-#' \code{\link{.ggplotLigerTheme}}. For \code{plotEnhancedVolcano}, arguments
-#' passed to \code{EnhancedVolcano::EnhancedVolcano()}.
+#' @inheritDotParams .ggScatter dotOrder raster labelText labelTextSize seed
+#' @inheritDotParams .ggplotLigerTheme title subtitle legendColorTitle showLegend baseSize titleSize subtitleSize xTextSize xTitleSize yTextSize yTitleSize legendTextSize legendTitleSize panelBorder
 #' @return ggplot
 #' @export
 #' @examples
-#' result <- runMarkerDEG(pbmcPlot)
-#' plotVolcano(result, 1)
+#' plotVolcano(deg.pw, "0.stim")
 plotVolcano <- function(
         result,
-        group,
+        group = NULL,
         logFCThresh = 1,
         padjThresh = 0.01,
-        labelTopN = 20,
+        highlight = NULL,
+        labelTopN = NULL,
         dotSize = 2,
         dotAlpha = 0.8,
         legendPosition = "top",
         labelSize = 4,
         ...
 ) {
-    if (!group %in% result$group) {
+    if (!is.factor(result$group)) result$group <- factor(result$group)
+    result$group <- droplevels(result$group)
+    if (is.null(group)) {
+        if (nlevels(result$group) == 1) groupUse <- levels(result$group)
+        else {
+            cli::cli_abort(
+                c("Please specify one group to visualize",
+                  i = "Available ones: {.val {levels(result$group)}}")
+            )
+        }
+    } else if (length(group) != 1 ||
+        !group %in% result$group) {
         cli::cli_abort(
-            c("Selected group does not exist in {.code result$group}",
-              i = "Available ones: {.val {levels(droplevels(result$group))}}")
+            c("Please specify one available group to visualize",
+              i = "Available ones: {.val {unique(result$group)}}")
         )
     }
-    result <- result[result$group == group, ]
-    result <- result[order(abs(result$logFC), decreasing = TRUE), ]
-    rownames(result) <- result$Gene
-    # Prepare for coloring that shows the filtering
-    result$Significance <- "Not significant"
-    result$Significance[abs(result$logFC) > logFCThresh] <- "logFC"
-    result$Significance[result$padj < padjThresh] <- "padj"
-    result$Significance[abs(result$logFC) > logFCThresh &
-                            result$padj < padjThresh] <- "padj & logFC"
-    result$Significance <- factor(result$Significance,
-                                  levels = c("Not significant",
-                                             "logFC", "padj", "padj & logFC"))
-    result$padj[result$padj == 0] <- min(result$padj[result$padj > 0]) / 10
-    result$padj <- -log10(result$padj)
-    # Prepare for Top result text labeling
-    passIdx <- result$Significance == "padj & logFC"
-    result$label <- NA
-    if (!is.null(labelTopN) && !isFALSE(labelTopN)) {
-        labelTopN <- min(labelTopN, length(which(passIdx)))
-        if (labelTopN > 0) {
-            labelIdx <- which(passIdx)[seq(labelTopN)]
-            result$label[labelIdx] <- result$feature[labelIdx]
+    # Avoid dplyr namespace weird bug
+    # That when "group" is a column in the data, and `group` exists as a
+    # variable out of the pipe, doing `.data[['group']] == group` will be
+    # interpreted as `.data[['group']] == .data[['group']]`
+    groupUse <- group
+    minPosPadj <- min(result$padj[result$padj > 0], na.rm = TRUE) / 10
+
+    result <- result %>%
+        dplyr::filter(.data[['group']] == groupUse, !is.na(.data[['padj']])) %>%
+        dplyr::mutate(Significance = dplyr::case_when(
+            abs(.data[['logFC']]) > logFCThresh &
+                .data[['padj']] < padjThresh ~ "padj & logFC",
+            abs(.data[['logFC']]) > logFCThresh ~ "logFC",
+            .data[['padj']] < padjThresh ~ "padj",
+            .default = "Not significant"
+        )) %>%
+        dplyr::mutate(Significance = factor(.data[["Significance"]],
+                                            levels = c("Not significant",
+                                                       "logFC", "padj", "padj & logFC"))) %>%
+        dplyr::mutate(padj = ifelse(.data[['padj']] == 0, minPosPadj, .data[['padj']])) %>%
+        dplyr::mutate(padj = -log10(.data[['padj']])) %>%
+        dplyr::arrange(dplyr::desc(.data[['padj']]),
+                       dplyr::desc(.data[['logFC']]))
+
+    # Decide which genes to label
+    if (!is.null(highlight)) {
+        notFound <- highlight[!highlight %in% result$feature]
+        if (length(notFound) > 0) {
+            cli::cli_alert_warning(
+                "The following features are not found in the result or got NA p-value: {.val {notFound}}"
+            )
         }
+        result <- result %>%
+            dplyr::mutate(
+                label = dplyr::case_when(
+                    .data[['feature']] %in% highlight ~ .data[['feature']],
+                    TRUE ~ NA_character_
+                )
+            )
+    } else {
+        if (is.null(labelTopN)) {
+            labelTopN <- sum(result$Significance == "padj & logFC")
+        } else {
+            labelTopN <- min(labelTopN, sum(result$Significance == "padj & logFC"))
+        }
+        labelIdx <- which(result$Significance == "padj & logFC")[seq(labelTopN)]
+        result$label <- NA_character_
+        result$label[labelIdx] <- result$feature[labelIdx]
     }
+
     # Prepare for lines that mark the cutoffs
     vlineLab <- data.frame(
         X = c(-logFCThresh, logFCThresh)
@@ -650,13 +996,21 @@ plotVolcano <- function(
     hlineLab <- data.frame(
         Y = c(-log10(padjThresh))
     )
+    halfWidth <- max(abs(result$logFC), na.rm = TRUE)
+    height <- max(result$padj, na.rm = TRUE)
+    lfcVertDrift <- height * 0.03
+    lfcHorizDrift <- halfWidth * 0.02
+    padjVertDrift <- height * 0.02
+    padjHorizDrift <- halfWidth * 0.001
     p <- .ggScatter(result, x = "logFC", y = "padj",
                     colorBy = "Significance", zeroAsNA = FALSE,
                     labelBy = "label",
                     xlab = "Log2 Fold Change",
                     ylab = "-log10 Adjusted P-value",
                     colorValues = c("black", "#ef2301", "#416ae1", "#238b22"),
-                    legendPosition = legendPosition, ...) +
+                    legendPosition = legendPosition,
+                    dotSize = dotSize, dotAlpha = dotAlpha,
+                    ggrepelLabelTick = TRUE, ...) +
         ggplot2::xlim(-max(abs(result$logFC)), max(abs(result$logFC))) +
         ggplot2::geom_vline(data = vlineLab,
                             mapping = ggplot2::aes(xintercept = .data[["X"]]),
@@ -665,23 +1019,44 @@ plotVolcano <- function(
                             ggplot2::aes(yintercept = .data[["Y"]]),
                             linetype = "longdash") +
         ggplot2::annotate("text",
-                          x = -logFCThresh - 0.5, y = -10,
+                          x = -logFCThresh - lfcHorizDrift, y = -lfcVertDrift,
                           label = paste0("lower log2FC cutoff: ", -logFCThresh),
-                          size = labelSize, hjust = 1) +
+                          size = labelSize, hjust = 1, vjust = 1) +
         ggplot2::annotate("text",
-                          x = logFCThresh + 0.5, y = -10,
+                          x = logFCThresh + lfcHorizDrift, y = -lfcVertDrift,
                           label = paste0("higher log2FC cutoff: ", logFCThresh),
-                          size = labelSize, hjust = 0) +
-        ggplot2::annotate("text",
-                          x = -max(abs(result$logFC)) + 2,
-                          y = 10,
+                          size = labelSize, hjust = 0, vjust = 1) +
+        ggplot2::annotate("text", angle = 90,
+                          x = - halfWidth + padjHorizDrift,
+                          y = -log10(padjThresh) + padjVertDrift,
+                          hjust = 0, vjust = 1,
                           label = paste("p-adj cutoff:", padjThresh),
                           size = labelSize)
     return(p)
 }
 
-#' @rdname plotVolcano
+#' Create volcano plot with EnhancedVolcano
+#' @inheritParams plotVolcano
+#' @param ... Arguments passed to EnhancedVolcano::EnhancedVolcano(), except
+#' that \code{toptable}, \code{lab}, \code{x} and \code{y} are prefilled by this
+#' wrapper.
+#' @returns ggplot
 #' @export
+#' @examples
+#' \donttest{
+#' if (requireNamespace("EnhancedVolcano", quietly = TRUE)) {
+#'     defaultCluster(pbmc) <- pbmcPlot$leiden_cluster
+#'     # Test the DEG between "stim" and "ctrl", within each cluster
+#'     result <- runPairwiseDEG(
+#'         pbmc,
+#'         groupTest = "stim",
+#'         groupCtrl = "ctrl",
+#'         variable1 = "dataset",
+#'         splitBy = "defaultCluster"
+#'     )
+#'     plotEnhancedVolcano(result, "0.stim")
+#' }
+#' }
 plotEnhancedVolcano <- function(
         result,
         group,
@@ -743,8 +1118,7 @@ plotEnhancedVolcano <- function(
 #' \code{\link[ggplot2]{scale_fill_viridis_c}}. Default \code{"magma"}.
 #' @param colorDirection Color gradient direction for
 #' \code{\link[ggplot2]{scale_fill_viridis_c}}. Default \code{-1}.
-#' @param ... More theme setting arguments passed to
-#' \code{\link{.ggplotLigerTheme}}.
+#' @inheritDotParams .ggplotLigerTheme title subtitle xlab ylab showLegend legendPosition baseSize titleSize xTitleSize yTitleSize legendTitleSize subtitleSize xTextSize yTextSize legendTextSize panelBorder plotly
 #' @return A ggplot object when only one plot is generated, A ggplot object
 #' combined with \code{\link[cowplot]{plot_grid}} when multiple plots and
 #' \code{combinePlot = TRUE}. A list of ggplot when multiple plots and
@@ -903,8 +1277,9 @@ plotDensityDimRed <- function(
 #' Default \code{15}.
 #' @param nPlot Integer, number of top genes to be shown in the loading rank
 #' plot. Default \code{30}.
-#' @param ... Additional plot theme setting arguments passed to
-#' \code{\link{.ggScatter}} and \code{\link{.ggplotLigerTheme}}.
+#' @inheritDotParams plotDimRed colorByFunc cellIdx shapeBy titles
+#' @inheritDotParams .ggScatter dotSize dotAlpha trimHigh trimLow raster
+#' @inheritDotParams .ggplotLigerTheme xlab ylab legendColorTitle legendShapeTitle showLegend legendPosition baseSize titleSize subtitleSize xTextSize xTitleSize yTextSize yTitleSize legendTextSize legendTitleSize colorPalette colorDirection naColor panelBorder
 #' @export
 #' @examples
 #' result <- getFactorMarkers(pbmcPlot, "ctrl", "stim")
@@ -918,12 +1293,42 @@ plotGeneLoadings <- function(
         nPlot = 30,
         ...
 ) {
-    p1 <- plotDimRed(
-        object, colorBy = useFactor, useDimRed = useDimRed, slot = "H.norm",
-        zeroAsNA = TRUE, dotOrder = "asc", splitBy = NULL, ...
+    allDotArgs <- list(...)
+    pdrArgs <- names(as.list(args(plotDimRed)))
+    pglrArgs <- names(as.list(args(plotGeneLoadingRank)))
+    pdrDotArgs <- intersect(names(allDotArgs), pdrArgs)
+    pglrDotArgs <- intersect(names(allDotArgs), pglrArgs)
+    otherDotArgs <- setdiff(names(allDotArgs), c(pdrDotArgs, pglrDotArgs))
+    p1 <- do.call(
+        what = plotDimRed,
+        args = c(
+            list(
+                object = object,
+                colorBy = useFactor,
+                useDimRed = useDimRed,
+                slot = "H.norm",
+                zeroAsNA = TRUE,
+                dotOrder = "asc",
+                splitBy = NULL
+            ),
+            allDotArgs[pdrDotArgs],
+            allDotArgs[otherDotArgs]
+        )
     )
-    bottom <- plotGeneLoadingRank(object, markerTable, useFactor,
-                                  nLabel, nPlot, ...)
+    bottom <- do.call(
+        what = plotGeneLoadingRank,
+        args = c(
+            list(
+                object = object,
+                markerTable = markerTable,
+                useFactor = useFactor,
+                nLabel = nLabel,
+                nPlot = nPlot
+            ),
+            allDotArgs[pglrDotArgs],
+            allDotArgs[otherDotArgs]
+        )
+    )
     bottom <- bottom[c(1, 3, 2)]
     bottomComb <- cowplot::plot_grid(plotlist = bottom, nrow = 1)
     cowplot::plot_grid(p1, bottomComb, nrow = 2)
@@ -1167,7 +1572,7 @@ plotSankey <- function(
     graphics::mtext(titles[3], side = 3, adj = 0.95, cex = titleCex, font = 2)
 }
 
-#' [Deprecated] Generate a river (Sankey) plot
+#' `r lifecycle::badge("deprecated")` Generate a river (Sankey) plot
 #' @description
 #' Creates a riverplot to show how separate cluster assignments from two
 #' datasets map onto a joint clustering. The joint clustering is by default the
@@ -1218,21 +1623,23 @@ makeRiverplot <- function(object, cluster1, cluster2, cluster_consensus = NULL,
 
 
 #' Visualize a spatial dataset
+#' @description
+#' Simple visualization of spatial coordinates. See example code for how to have
+#' information preset in the object. Arguments to the liger object method are
+#' passed down to ligerDataset method.
 #' @export
 #' @rdname plotSpatial
 #' @param object Either a \linkS4class{liger} object containing a spatial
 #' dataset or a \linkS4class{ligerSpatialDataset} object.
-#' @param ... Arguments passed to other methods. \code{.liger} method passes
-#' everything to \code{.ligerSpatialDataset} method, and the latter passes
-#' everything to \code{\link{.ggScatter}} and then
-#' \code{\link{.ggplotLigerTheme}}.
+#' @inheritDotParams .ggScatter dotOrder dotSize dotAlpha raster labelTextSize seed
+#' @inheritDotParams .ggplotLigerTheme title subtitle showLegend legendPosition baseSize titleSize xTitleSize yTitleSize legendTitleSize subtitleSize xTextSize yTextSize legendTextSize legendDotSize legendNRow legendNCol colorLabels colorValues naColor
 #' @return A ggplot object
 #' @examples
 #' ctrl.fake.spatial <- as.ligerDataset(dataset(pbmc, "ctrl"), modal = "spatial")
 #' fake.coords <- matrix(rnorm(2 * ncol(ctrl.fake.spatial)), ncol = 2)
-#' dimnames(fake.coords) <- list(colnames(ctrl.fake.spatial), c("x", "y"))
 #' coordinate(ctrl.fake.spatial) <- fake.coords
 #' dataset(pbmc, "ctrl") <- ctrl.fake.spatial
+#' defaultCluster(pbmc) <- pbmcPlot$leiden_cluster
 #' plotSpatial2D(pbmc, dataset = "ctrl")
 plotSpatial2D <- function(object, ...) {
     UseMethod("plotSpatial2D", object)
@@ -1281,6 +1688,8 @@ plotSpatial2D.liger <- function(
 #' it.
 #' @param labelText Logical, whether to label annotation onto the scatter plot.
 #' Default \code{FALSE}.
+#' @param panelBorder Whether to show rectangle border of the panel instead of
+#' using ggplot classic bottom and left axis lines. Default \code{TRUE}.
 plotSpatial2D.ligerSpatialDataset <- function(
         object,
         useCluster = NULL,
@@ -1289,6 +1698,7 @@ plotSpatial2D.ligerSpatialDataset <- function(
         xlab = NULL,
         ylab = NULL,
         labelText = FALSE,
+        panelBorder = TRUE,
         ...)
 {
     .checkArgLen(useCluster, ncol(object), repN = FALSE, class = "factor")
@@ -1304,21 +1714,20 @@ plotSpatial2D.ligerSpatialDataset <- function(
 
     if (is.null(useCluster)) {
         .ggScatter(plotDF = plotDF, x = "x", y = "y",
-                   xlab = xlab, ylab = ylab, ...) +
-            ggplot2::theme_bw() +
-            ggplot2::theme(panel.grid = ggplot2::element_blank(),
-                           axis.ticks = ggplot2::element_blank(),
-                           axis.text = ggplot2::element_blank()) +
+                   xlab = xlab, ylab = ylab, panelBorder = panelBorder, ...) +
+            ggplot2::theme(axis.ticks = ggplot2::element_blank(),
+                           axis.text.x = ggplot2::element_blank(),
+                           axis.text.y = ggplot2::element_blank()) +
             ggplot2::coord_fixed(xlim = xRange, ylim = yRange)
     } else {
         plotDF[[legendColorTitle]] <- factor(useCluster)
         .ggScatter(plotDF = plotDF, x = "x", y = "y", colorBy = legendColorTitle,
                    xlab = xlab, ylab = ylab, labelText = labelText,
-                   legendColorTitle = legendColorTitle, ...) +
-            ggplot2::theme_bw() +
-            ggplot2::theme(panel.grid = ggplot2::element_blank(),
-                           axis.ticks = ggplot2::element_blank(),
-                           axis.text = ggplot2::element_blank()) +
+                   legendColorTitle = legendColorTitle,
+                   panelBorder = panelBorder, ...) +
+            ggplot2::theme(axis.ticks = ggplot2::element_blank(),
+                           axis.text.x = ggplot2::element_blank(),
+                           axis.text.y = ggplot2::element_blank()) +
             ggplot2::coord_fixed(xlim = xRange, ylim = yRange)
     }
 }

@@ -49,7 +49,7 @@ scaleNotCenter(object, ...)
 }
 \arguments{
 \item{object}{\linkS4class{liger} object, \linkS4class{ligerDataset} object,
-\linkS4class{dgCMatrix}, or a Seurat object.}
+\link[Matrix]{dgCMatrix-class} object, or a Seurat object.}
 
 \item{...}{Arguments passed to other methods. The order goes by: "liger"
 method calls "ligerDataset" method", which then calls "dgCMatrix" method.
@@ -92,15 +92,15 @@ annotation. Default \code{"orig.ident"}.}
 \value{
 Updated \code{object}
 \itemize{
- \item{dgCMatrix method - Returns scaled dgCMatrix object}
- \item{ligerDataset method - Updates the \code{scaleData} and
-       \code{scaledUnsharedData} (if unshared variable feature available) slot
-       of the object}
- \item{liger method - Updates the \code{scaleData} and
-       \code{scaledUnsharedData} (if unshared variable feature available) slot
-       of chosen datasets}
- \item{Seurat method - Adds a named layer in chosen assay (V5), or update the
- \code{scale.data} slot of the chosen assay (<=V4)}
+\item{dgCMatrix method - Returns scaled dgCMatrix object}
+\item{ligerDataset method - Updates the \code{scaleData} and
+\code{scaledUnsharedData} (if unshared variable feature available) slot
+of the object}
+\item{liger method - Updates the \code{scaleData} and
+\code{scaledUnsharedData} (if unshared variable feature available) slot
+of chosen datasets}
+\item{Seurat method - Adds a named layer in chosen assay (V5), or update the
+\code{scale.data} slot of the chosen assay (<=V4)}
 }
 }
 \description{
