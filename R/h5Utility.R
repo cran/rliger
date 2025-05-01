@@ -43,23 +43,49 @@ H5Apply <- function(
         ...
 ) {
     fun.args <- list(...)
-    useData <- match.arg(useData)
-    h5meta <- h5fileInfo(object)
-    numCells <- ncol(object)
-    numFeatures <- nrow(object)
+    da_rowidx <- da_colidx <- NULL
+    if (inherits(object, "ligerDataset")) {
+        useData <- match.arg(useData)
+        h5meta <- h5fileInfo(object)
+
+        h5file <- h5meta$H5File
+        colptr <- h5file[[h5meta$indptrName]]
+        rowind <- h5file[[h5meta$indicesName]]
+        data <- h5file[[h5meta[[useData]]]]
+        numCells <- ncol(object)
+        numFeatures <- nrow(object)
+        featureNames <- rownames(object)
+    } else if (inherits(object, "DelayedArray")) {
+        h5Path <- DelayedArray::path(object)
+        h5file <- hdf5r::H5File$new(h5Path, mode = "r")
+        on.exit(h5file$close_all())
+        h5group <- DelayedArray::seed(object)@group
+        colptr <- h5file[[file.path(h5group, "indptr")]]
+        rowind <- h5file[[file.path(h5group, "indices")]]
+        data <- h5file[[file.path(h5group, "data")]]
+        numCells <- h5file[[file.path(h5group, "shape")]][2]
+        numFeatures <- h5file[[file.path(h5group, "shape")]][1]
+        featureNames <- h5file[[file.path(h5group, "features/name")]][]
+        # DelayedArray can be subset/rearranged from the original H5 data
+        da_rowidx <- DelayedArray::netSubsetAndAperm(object)[[1]]
+        da_colidx <- DelayedArray::netSubsetAndAperm(object)[[2]]
+        if (!is.null(da_colidx)) {
+            cli::cli_abort(c(
+                x = "rliger internal H5 chunk computation does not accept DelayedArray representation with column subset or rearrangement.",
+                i = "Please write the subset/rearranged data to new H5 file and insert back to the liger object."
+            ))
+        }
+    }
+
 
     prev_end_col <- 1
     prev_end_data <- 1
     numChunks <- ceiling(numCells / chunkSize)
     ind <- 0
-    h5file <- h5meta$H5File
-    colptr <- h5file[[h5meta$indptrName]]
-    rowind <- h5file[[h5meta$indicesName]]
-    data <- h5file[[h5meta[[useData]]]]
+
     if (isTRUE(verbose))
         cliID <- cli::cli_progress_bar(name = "HDF5 chunk processing", type = "iter",
                                        total = numChunks, clear = FALSE)
-        # pb <- utils::txtProgressBar(0, numChunks, style = 3)
     for (i in seq(numChunks)) {
         start <- (i - 1)*chunkSize + 1
         end <- if (i*chunkSize > ncol(object)) ncol(object) else i*chunkSize
@@ -76,17 +102,15 @@ H5Apply <- function(
         chunk <- Matrix::sparseMatrix(i = chunkRowind + 1, p = chunkColptr,
                                       x = chunkData,
                                       dims = c(numFeatures, end - start + 1),
-                                      dimnames = list(rownames(object),
+                                      dimnames = list(featureNames,
                                                       colnames(object)[start:end]))
+        if (!is.null(da_rowidx)) chunk <- chunk[da_rowidx, , drop = FALSE]
         init <- do.call(FUN, c(list(chunk, nnzStart:nnzEnd,
                                     start:end, init),
                                fun.args))
-        # if (isTRUE(verbose)) utils::setTxtProgressBar(pb, i)
         if (isTRUE(verbose)) cli::cli_progress_update(id = cliID, set = i)
     }
-    # Break a new line otherwise next message comes right after the "%" sign.
-    if (isTRUE(verbose)) cat("\n")
-    init
+    return(init)
 }
 
 # Safely add new H5 Data to the HDF5 file in a ligerDataset object
@@ -491,7 +515,16 @@ writeH5.dgCMatrix <- function(
     )
     h5file[[featuresPath]][] <- rownames(x)
 
-    h5file$close()
+    featureTypePath <- gsub("name$", "feature_type", featuresPath)
+    safeH5Create(
+        object = h5file,
+        dataPath = featureTypePath,
+        dims = nrow(x),
+        dtype = "char"
+    )
+    h5file[[featureTypePath]][] <- rep("Gene Expression", nrow(x))
+
+    h5file$close_all()
     invisible(NULL)
 }
 
@@ -537,3 +570,32 @@ writeH5.liger <- function(x, file, useDatasets, ...) {
     }
     invisible(NULL)
 }
+
+get_DelayedArray_filepath <- function(x) {
+    if ("seeds" %in% methods::slotNames(x)) x <- x@seeds[[1]]
+    while ("seed" %in% methods::slotNames(x)) {
+        x <- x@seed
+        if ("seeds" %in% methods::slotNames(x)) x <- x@seeds[[1]]
+    }
+    if (!inherits(x, "HDF5ArraySeed") && !inherits(x, "TENxMatrixSeed")) {
+        cli::cli_abort("The DelayedArray representation does not contain HDF5Array backend which is required by rliger.")
+    }
+    x@filepath
+}
+
+get_DelayedArray_group <- function(x) {
+    if ("seeds" %in% methods::slotNames(x)) x <- x@seeds[[1]]
+    while ("seed" %in% methods::slotNames(x)) {
+        x <- x@seed
+        if ("seeds" %in% methods::slotNames(x)) x <- x@seeds[[1]]
+    }
+    if (!inherits(x, "HDF5ArraySeed") && !inherits(x, "TENxMatrixSeed")) {
+        cli::cli_abort("The DelayedArray representation does not contain HDF5Array backend which is required by rliger.")
+    }
+    if ("group" %in% methods::slotNames(x)) return(x@group)
+    else if ("name" %in% methods::slotNames(x)) return(x@name)
+    else {
+        cli::cli_abort("Cannot detect data path within the HDF5Array-backed DelayedArray.")
+    }
+}
+

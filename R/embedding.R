@@ -39,6 +39,7 @@
 #' \code{getOption("ligerVerbose")} or \code{TRUE} if users have not set.
 #' @param k,use.raw,dims.use,n_neighbors,min_dist,rand.seed \bold{Deprecated}.
 #' See Usage section for replacement.
+#' @param ... Additional argument passed to \code{uwot::umap()}.
 #' @return The \code{object} where a \code{"UMAP"} variable is updated in the
 #' \code{cellMeta} slot with the whole 2D embedding matrix.
 #' @seealso \code{\link{runTSNE}}
@@ -63,7 +64,8 @@ runUMAP <- function(
         dims.use = useDims,
         n_neighbors = nNeighbors,
         min_dist = minDist,
-        rand.seed = seed
+        rand.seed = seed,
+        ...
 ) {
     .deprecateArgs(list(k = "nDims", use.raw = "useRaw", dims.use = "useDims",
                         n_neighbors = "nNeighbors", min_dist = "minDist",
@@ -82,7 +84,7 @@ runUMAP <- function(
                        n_components = as.integer(nDims),
                        metric = distance,
                        n_neighbors = as.integer(nNeighbors),
-                       min_dist = minDist)
+                       min_dist = minDist, verbose = verbose, ...)
     if (isTRUE(verbose)) cli::cli_process_done()
     asDefault <- asDefault %||% is.null(object@uns$defaultDimRed)
 
@@ -166,6 +168,12 @@ runTSNE <- function(
         cli::cli_process_start("Generating TSNE ({method}) on {type} cell factor loadings")
     if (!is.null(useDims)) H <- H[, useDims, drop = FALSE]
     if (method == "Rtsne") {
+        if (!requireNamespace("Rtsne", quietly = TRUE)) {
+            cli::cli_abort(
+                "Package {.pkg Rtsne} is needed for this function to work.
+            Please install it by command:
+            {.code install.packages('Rtsne')}")
+        }
         set.seed(seed)
         tsne <- Rtsne::Rtsne(H,
                              dims = nDims,

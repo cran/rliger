@@ -7,26 +7,26 @@
 plotGODot(
   result,
   group = NULL,
-  query = c("Up", "Down"),
+  query = NULL,
   pvalThresh = 0.05,
   n = 20,
+  minDotSize = 3,
+  maxDotSize = 7,
   termIDMatch = "^GO",
   colorPalette = "E",
-  colorDirection = 1,
-  xlab = "-log10(P-value)",
-  ylab = "Term name",
+  colorDirection = -1,
   ...
 )
 }
 \arguments{
 \item{result}{Returned list object from \code{\link{runGOEnrich}}.}
 
-\item{group}{Character vector of group names, must be available in
-\code{names(result)}. Default \code{NULL} make plots for all groups.}
+\item{group}{A single group name to be visualized, must be available in
+\code{names(result)}. Default \code{NULL} make plots for the first group.}
 
 \item{query}{A single string selecting from which query to show the result.
 Choose from \code{"Up"} for results using up-regulated genes, \code{"Down"}
-for down-regulated genes. Default \code{"Up"}.}
+for down-regulated genes. Default NULL use the first available.}
 
 \item{pvalThresh}{Numeric scalar, cutoff for p-value where smaller values are
 considered as significant. Default \code{0.05}.}
@@ -34,14 +34,16 @@ considered as significant. Default \code{0.05}.}
 \item{n}{Number of top terms to be shown, ranked by p-value. Default
 \code{20}.}
 
+\item{minDotSize}{The size of the dot representing the minimum gene count.
+Default \code{3}.}
+
+\item{maxDotSize}{The size of the dot representing the maximum gene count.}
+
 \item{termIDMatch}{Regular expression pattern to match the term ID. Default
 \code{"^GO"} for only using GO terms from returned results.}
 
 \item{colorPalette, colorDirection}{Viridis palette options. Default
 \code{"E"} and \code{1}.}
-
-\item{xlab, ylab}{Axis title for x and y axis. Default
-\code{"-log10(P-value)"} and \code{"Term name"}, respectively.}
 
 \item{...}{
   Arguments passed on to \code{\link[=.ggplotLigerTheme]{.ggplotLigerTheme}}
@@ -70,28 +72,16 @@ for the plot. Requires installation of package "plotly". Default
   }}
 }
 \value{
-A ggplot object if only one group or a list of ggplot objects.
+A ggplot object.
 }
 \description{
 Visualize GO enrichment test result in dot plot
 }
 \examples{
 \donttest{
-defaultCluster(pbmc) <- pbmcPlot$leiden_cluster
-# Test the DEG between "stim" and "ctrl", within each cluster
-result <- runPairwiseDEG(
-    pbmc,
-    groupTest = "stim",
-    groupCtrl = "ctrl",
-    variable1 = "dataset",
-    splitBy = "defaultCluster"
-)
-# Setting `significant = FALSE` because it's hard for a gene list obtained
-# from small test dataset to represent real-life biology.
 if (requireNamespace("gprofiler2", quietly = TRUE)) {
-    go <- runGOEnrich(result, group = "0.stim", splitReg = TRUE, significant = FALSE)
-    # The toy example won't have significant result.
-    plotGODot(go)
+   go <- runGOEnrich(deg.pw)
+   plotGODot(go)
 }
 }
 }

@@ -1,6 +1,6 @@
 Package: rliger
-Version: 2.1.0
-Date: 2024-10-29
+Version: 2.2.0
+Date: 2025-05-01
 Type: Package
 Title: Linked Inference of Genomic Experimental Relationships
 Description: Uses an extension of nonnegative matrix factorization to identify shared and dataset-specific factors. See Welch J, Kozareva V, et al (2019) <doi:10.1016/j.cell.2019.05.006>, and Liu J, Gao C, Sodicoff J, et al (2020) <doi:10.1038/s41596-020-0391-8> for more details.
@@ -37,21 +37,18 @@ LazyData: true
 RoxygenNote: 7.3.2
 VignetteBuilder: knitr
 Encoding: UTF-8
-Additional_repositories: https://welch-lab.r-universe.dev,
-        https://blaserlab.r-universe.dev
 LinkingTo: Rcpp, RcppArmadillo, RcppProgress
 Depends: methods, stats, utils, R (>= 3.5)
-Imports: circlize, cli, cowplot, ComplexHeatmap, dplyr, ggplot2, grid,
-        hdf5r, leidenAlg (>= 1.1.1), lifecycle, magrittr, Matrix, RANN,
-        RColorBrewer, Rcpp, rlang, Rtsne, S4Vectors, scales, uwot,
-        viridis
-Suggests: AnnotationDbi, DESeq2, DoubletFinder (>= 2.0.4),
+Imports: cli, DelayedArray, dplyr, ggplot2, grid, HDF5Array, hdf5r,
+        leidenAlg (>= 1.1.1), lifecycle, magrittr, Matrix, RANN, Rcpp,
+        RcppPlanc (>= 2.0.0), rlang, S4Vectors, scales, uwot
+Suggests: AnnotationDbi, circlize, ComplexHeatmap, cowplot, DESeq2,
         EnhancedVolcano, fgsea, GenomicRanges, ggrepel, gprofiler2,
-        IRanges, knitr, org.Hs.eg.db, plotly, psych, RcppPlanc,
-        reactome.db, rmarkdown, sankey, scattermore (>= 0.7), Seurat,
+        IRanges, knitr, org.Hs.eg.db, plotly, psych, reactome.db,
+        rmarkdown, Rtsne, sankey, scattermore (>= 0.7), Seurat,
         SeuratObject, SingleCellExperiment, SummarizedExperiment,
-        testthat
+        testthat, viridis
 NeedsCompilation: yes
-Packaged: 2024-10-29 18:07:33 UTC; wangych
+Packaged: 2025-05-01 16:01:34 UTC; wangych
 Repository: CRAN
-Date/Publication: 2024-10-29 23:40:02 UTC
+Date/Publication: 2025-05-01 22:40:02 UTC

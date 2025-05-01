@@ -390,6 +390,11 @@ runINMF.Seurat <- function(
     allFeatures <- lapply(object, rownames)
     features <- Reduce(.same, allFeatures)
 
+    if (inherits(object[[1]], "DelayedArray")) {
+        object <- lapply(object, as.H5SpMat.DelayedArray)
+        # object <- lapply(object, as.H5Mat.DelayedArray)
+    }
+
     if (min(lengths(barcodeList)) < k) {
         cli::cli_abort("Number of factors (k={k}) should be less than the number of cells in the smallest dataset ({min(lengths(barcodeList))}).")
     }
@@ -405,6 +410,31 @@ runINMF.Seurat <- function(
             cli::cli_alert_info("Replicate run [{i}/{nRandomStarts}]")
         }
         set.seed(seed = seed + i - 1)
+        WInit <- WInit %||% matrix(
+            data = abs(stats::runif(n = length(features) * k, min = 0, max = 2)),
+            nrow = length(features),
+            ncol = k
+        )
+        VInit <- VInit %||% lapply(
+            X = seq_along(object),
+            FUN = function(i) {
+                matrix(
+                    data = abs(x = stats::runif(n = length(features) * k, min = 0, max = 2)),
+                    nrow = length(features),
+                    ncol = k
+                )
+            }
+        )
+        HInit <- HInit %||% lapply(
+            X = barcodeList,
+            FUN = function(barcodes) {
+                return(matrix(
+                    data = abs(stats::runif(n = length(barcodes) * k, min = 0, max = 2)),
+                    nrow = length(barcodes),
+                    ncol = k
+                ))
+            }
+        )
         out <- RcppPlanc::inmf(objectList = object, k = k, lambda = lambda,
                                niter = nIteration, Hinit = HInit,
                                Vinit = VInit, Winit = WInit, nCores = nCores,
@@ -428,6 +458,25 @@ runINMF.Seurat <- function(
     names(bestResult$V) <- names(bestResult$H) <- names(object)
     dimnames(bestResult$W) <- list(features, factorNames)
     return(bestResult)
+}
+
+as.H5Mat.DelayedArray <- function(x) {
+    filename <- get_DelayedArray_filepath(x)
+    group <- get_DelayedArray_group(x)
+    RcppPlanc::H5Mat(filename = filename, dataPath = group)
+}
+
+as.H5SpMat.DelayedArray <- function(x) {
+    filename <- get_DelayedArray_filepath(x)
+    group <- get_DelayedArray_group(x)
+    RcppPlanc::H5SpMat(
+        filename = filename,
+        valuePath = file.path(group, "data"),
+        rowindPath = file.path(group, "indices"),
+        colptrPath = file.path(group, "indptr"),
+        nrow = nrow(x),
+        ncol = ncol(x)
+    )
 }
 
 #' `r lifecycle::badge("deprecated")` Perform iNMF on scaled datasets
@@ -554,6 +603,8 @@ optimizeALS <- function( # nocov start
 #' factorization, arguments \code{WInit}, \code{VInit}, \code{AInit} and
 #' \code{BInit} are exposed. The requirements for these argument follows:
 #' \itemize{
+#'  \item{HInit - A list object of matrices each of size \eqn{k \times n_i}.
+#'      Number of matrices should match with \code{newDatasets}.}
 #'  \item{WInit - A matrix object of size \eqn{m \times k}. (see
 #'      \code{\link{runINMF}} for notation)}
 #'  \item{VInit - A list object of matrices each of size \eqn{m \times k}.
@@ -587,9 +638,9 @@ optimizeALS <- function( # nocov start
 #' 1.
 #' @param projection Whether to perform data integration with scenario 3 when
 #' \code{newDatasets} is specified. See description. Default \code{FALSE}.
-#' @param WInit,VInit,AInit,BInit Optional initialization for \eqn{W}, \eqn{V},
-#' \eqn{A}, and \eqn{B} matrices, respectively. Must be presented all together.
-#' See detail. Default \code{NULL}.
+#' @param HInit,WInit,VInit,AInit,BInit Optional initialization for \eqn{H},
+#' \eqn{W}, \eqn{V}, \eqn{A}, and \eqn{B} matrices, respectively. Must be
+#' presented all together. See detail. Default \code{NULL}.
 #' @param k Inner dimension of factorization--number of metagenes. A value in
 #' the range 20-50 works well for most analyses. Default \code{20}.
 #' @param lambda Regularization parameter. Larger values penalize
@@ -680,6 +731,7 @@ runOnlineINMF.liger <- function(
         maxEpochs = 5,
         HALSiter = 1,
         minibatchSize = 5000,
+        HInit = NULL,
         WInit = NULL,
         VInit = NULL,
         AInit = NULL,
@@ -704,11 +756,13 @@ runOnlineINMF.liger <- function(
         else return(sd)
     })
     if (!is.null(newDatasets)) {
+        HInit <- HInit %||% getMatrix(object, "H", returnList = TRUE)
+        HInit <- lapply(HInit, t)
         WInit <- WInit %||% getMatrix(object, "W", returnList = FALSE)
         VInit <- VInit %||% getMatrix(object, "V", returnList = TRUE)
         AInit <- AInit %||% getMatrix(object, "A", returnList = TRUE)
         BInit <- BInit %||% getMatrix(object, "B", returnList = TRUE)
-        if (is.null(WInit) || any(sapply(VInit, is.null)) ||
+        if (any(sapply(HInit, is.null)) || is.null(WInit) || any(sapply(VInit, is.null)) ||
             any(sapply(AInit, is.null)) || any(sapply(BInit, is.null))) {
             cli::cli_abort(
                 "Cannot find complete online iNMF result for current datasets.
@@ -765,8 +819,9 @@ runOnlineINMF.liger <- function(
                                maxEpochs = maxEpochs,
                                minibatchSize = minibatchSize,
                                HALSiter = HALSiter, verbose = verbose,
-                               WInit = WInit, VInit = VInit, AInit = AInit,
-                               BInit = BInit, seed = seed, nCores = nCores)
+                               HInit = HInit, WInit = WInit, VInit = VInit,
+                               AInit = AInit, BInit = BInit,
+                               seed = seed, nCores = nCores)
     if (!isTRUE(projection)) {
         # Scenario 1&2, everything updated
         for (i in seq_along(object)) {
@@ -808,6 +863,7 @@ runOnlineINMF.liger <- function(
         newDatasets = NULL,
         projection = FALSE,
         maxEpochs = 5,
+        HInit = NULL,
         WInit = NULL,
         VInit = NULL,
         AInit = NULL,
@@ -847,8 +903,9 @@ runOnlineINMF.liger <- function(
                                  project = projection, k = k, lambda = lambda,
                                  maxEpoch = maxEpochs,
                                  minibatchSize = minibatchSize,
-                                 maxHALSIter = HALSiter, Vinit = VInit,
-                                 Winit = WInit, Ainit = AInit, Binit = BInit,
+                                 maxHALSIter = HALSiter,
+                                 Hinit = HInit, Winit = WInit, Vinit = VInit,
+                                 Ainit = AInit, Binit = BInit,
                                  nCores = nCores, verbose = verbose)
     factorNames <- paste0("Factor_", seq(k))
     if (isTRUE(projection)) {
@@ -927,8 +984,8 @@ runOnlineINMF.Seurat <- function(
         newDatasets = NULL, projection = FALSE,
         maxEpochs = maxEpochs, HALSiter = HALSiter,
         minibatchSize = minibatchSize, seed = seed, verbose = verbose,
-        nCores = nCores,
-        WInit = NULL, VInit = NULL, AInit = NULL, BInit = NULL,
+        nCores = nCores, HInit = NULL, WInit = NULL, VInit = NULL,
+        AInit = NULL, BInit = NULL
     )
     Hconcat <- t(Reduce(cbind, res$H))
     colnames(Hconcat) <- paste0(reduction, "_", seq_len(ncol(Hconcat)))
@@ -968,6 +1025,7 @@ runOnlineINMF.Seurat <- function(
 #' element should be the name of an HDF5 file.
 #' @param projection Perform data integration by shared metagene (W) projection
 #' (scenario 3). (default FALSE)
+#' @param H.init Optional initialization for H. (default NULL)
 #' @param W.init Optional initialization for W. (default NULL)
 #' @param V.init Optional initialization for V (default NULL)
 #' @param H.init Optional initialization for H (default NULL)
@@ -1031,8 +1089,8 @@ online_iNMF <- function( # nocov start
         object = object, k = k, lambda = lambda, maxEpochs = max.epochs,
         HALSiter = miniBatch_max_iters, minibatchSize = miniBatch_size,
         seed = seed, verbose = verbose, newDatasets = X_new,
-        projection = projection, WInit = W.init, VInit = V.init, AInit = A.init,
-        BInit = B.init
+        projection = projection, HInit = H.init, WInit = W.init, VInit = V.init,
+        AInit = A.init, BInit = B.init
     )
     return(object)
 } # nocov end
@@ -2062,6 +2120,7 @@ centroidAlign.Seurat <- function(
 #' \code{byDataset = FALSE} or each dataset a value otherwise.
 #' @export
 #' @examples
+#' \donttest{
 #' if (requireNamespace("RcppPlanc", quietly = TRUE)) {
 #'     pbmc <- pbmc %>%
 #'     normalize %>%
@@ -2070,6 +2129,7 @@ centroidAlign.Seurat <- function(
 #'     runINMF %>%
 #'     alignFactors
 #'     calcAgreement(pbmc)
+#' }
 #' }
 calcAgreement <- function(
         object,

@@ -118,14 +118,15 @@ BEGIN_RCPP
 END_RCPP
 }
 // rowVars_sparse_rcpp
-NumericVector rowVars_sparse_rcpp(const arma::sp_mat& x, const NumericVector& means);
-RcppExport SEXP _rliger_rowVars_sparse_rcpp(SEXP xSEXP, SEXP meansSEXP) {
+NumericVector rowVars_sparse_rcpp(const arma::sp_mat& x, const NumericVector& means, const double& ncol);
+RcppExport SEXP _rliger_rowVars_sparse_rcpp(SEXP xSEXP, SEXP meansSEXP, SEXP ncolSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const arma::sp_mat& >::type x(xSEXP);
     Rcpp::traits::input_parameter< const NumericVector& >::type means(meansSEXP);
-    rcpp_result_gen = Rcpp::wrap(rowVars_sparse_rcpp(x, means));
+    Rcpp::traits::input_parameter< const double& >::type ncol(ncolSEXP);
+    rcpp_result_gen = Rcpp::wrap(rowVars_sparse_rcpp(x, means, ncol));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -266,6 +267,21 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// objErr_i
+double objErr_i(const arma::mat& H, const arma::mat& W, const arma::mat& V, const arma::sp_mat& E, const double& lambda);
+RcppExport SEXP _rliger_objErr_i(SEXP HSEXP, SEXP WSEXP, SEXP VSEXP, SEXP ESEXP, SEXP lambdaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type H(HSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type E(ESEXP);
+    Rcpp::traits::input_parameter< const double& >::type lambda(lambdaSEXP);
+    rcpp_result_gen = Rcpp::wrap(objErr_i(H, W, V, E, lambda));
+    return rcpp_result_gen;
+END_RCPP
+}
 // cluster_vote_rcpp
 IntegerVector cluster_vote_rcpp(const arma::mat& nn_ranked, IntegerVector clusts);
 RcppExport SEXP _rliger_cluster_vote_rcpp(SEXP nn_rankedSEXP, SEXP clustsSEXP) {
@@ -330,8 +346,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // cpp_rank_matrix_dgc
-std::vector<std::list<float> > cpp_rank_matrix_dgc(arma::vec& x, const arma::vec& p, int nrow, int ncol);
-RcppExport SEXP _rliger_cpp_rank_matrix_dgc(SEXP xSEXP, SEXP pSEXP, SEXP nrowSEXP, SEXP ncolSEXP) {
+std::vector<std::list<float> > cpp_rank_matrix_dgc(arma::vec& x, const arma::vec& p, int nrow, int ncol, bool showProgress);
+RcppExport SEXP _rliger_cpp_rank_matrix_dgc(SEXP xSEXP, SEXP pSEXP, SEXP nrowSEXP, SEXP ncolSEXP, SEXP showProgressSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -339,7 +355,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::vec& >::type p(pSEXP);
     Rcpp::traits::input_parameter< int >::type nrow(nrowSEXP);
     Rcpp::traits::input_parameter< int >::type ncol(ncolSEXP);
-    rcpp_result_gen = Rcpp::wrap(cpp_rank_matrix_dgc(x, p, nrow, ncol));
+    Rcpp::traits::input_parameter< bool >::type showProgress(showProgressSEXP);
+    rcpp_result_gen = Rcpp::wrap(cpp_rank_matrix_dgc(x, p, nrow, ncol, showProgress));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -405,7 +422,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_rliger_safe_scale", (DL_FUNC) &_rliger_safe_scale, 3},
     {"_rliger_scaleNotCenter_byCol_dense_rcpp", (DL_FUNC) &_rliger_scaleNotCenter_byCol_dense_rcpp, 1},
     {"_rliger_scaleNotCenter_byRow_perDataset_rcpp", (DL_FUNC) &_rliger_scaleNotCenter_byRow_perDataset_rcpp, 3},
-    {"_rliger_rowVars_sparse_rcpp", (DL_FUNC) &_rliger_rowVars_sparse_rcpp, 2},
+    {"_rliger_rowVars_sparse_rcpp", (DL_FUNC) &_rliger_rowVars_sparse_rcpp, 3},
     {"_rliger_rowDivide_rcpp", (DL_FUNC) &_rliger_rowDivide_rcpp, 2},
     {"_rliger_sumSquaredDeviations", (DL_FUNC) &_rliger_sumSquaredDeviations, 2},
     {"_rliger_denseZScore", (DL_FUNC) &_rliger_denseZScore, 2},
@@ -417,12 +434,13 @@ static const R_CallMethodDef CallEntries[] = {
     {"_rliger_updatePseudoBulkRcpp", (DL_FUNC) &_rliger_updatePseudoBulkRcpp, 4},
     {"_rliger_updateNCellExprRcpp", (DL_FUNC) &_rliger_updateNCellExprRcpp, 4},
     {"_rliger_makeFeatureMatrix", (DL_FUNC) &_rliger_makeFeatureMatrix, 2},
+    {"_rliger_objErr_i", (DL_FUNC) &_rliger_objErr_i, 5},
     {"_rliger_cluster_vote_rcpp", (DL_FUNC) &_rliger_cluster_vote_rcpp, 2},
     {"_rliger_max_factor_rcpp", (DL_FUNC) &_rliger_max_factor_rcpp, 3},
     {"_rliger_ComputeSNN", (DL_FUNC) &_rliger_ComputeSNN, 2},
     {"_rliger_WriteEdgeFile", (DL_FUNC) &_rliger_WriteEdgeFile, 3},
     {"_rliger_DirectSNNToFile", (DL_FUNC) &_rliger_DirectSNNToFile, 4},
-    {"_rliger_cpp_rank_matrix_dgc", (DL_FUNC) &_rliger_cpp_rank_matrix_dgc, 4},
+    {"_rliger_cpp_rank_matrix_dgc", (DL_FUNC) &_rliger_cpp_rank_matrix_dgc, 5},
     {"_rliger_rowAggregateSum_sparse", (DL_FUNC) &_rliger_rowAggregateSum_sparse, 3},
     {"_rliger_colAggregateSum_sparse", (DL_FUNC) &_rliger_colAggregateSum_sparse, 3},
     {"_rliger_colNNZAggr_sparse", (DL_FUNC) &_rliger_colNNZAggr_sparse, 3},

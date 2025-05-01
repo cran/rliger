@@ -33,8 +33,8 @@ scaleNotCenter_byRow_perDataset_rcpp <- function(x, ann, n) {
     .Call(`_rliger_scaleNotCenter_byRow_perDataset_rcpp`, x, ann, n)
 }
 
-rowVars_sparse_rcpp <- function(x, means) {
-    .Call(`_rliger_rowVars_sparse_rcpp`, x, means)
+rowVars_sparse_rcpp <- function(x, means, ncol) {
+    .Call(`_rliger_rowVars_sparse_rcpp`, x, means, ncol)
 }
 
 rowDivide_rcpp <- function(x, v) {
@@ -95,6 +95,10 @@ makeFeatureMatrix <- function(bedmat, barcodes) {
     .Call(`_rliger_makeFeatureMatrix`, bedmat, barcodes)
 }
 
+objErr_i <- function(H, W, V, E, lambda) {
+    .Call(`_rliger_objErr_i`, H, W, V, E, lambda)
+}
+
 cluster_vote_rcpp <- function(nn_ranked, clusts) {
     .Call(`_rliger_cluster_vote_rcpp`, nn_ranked, clusts)
 }
@@ -115,8 +119,8 @@ DirectSNNToFile <- function(nn_ranked, prune, display_progress, filename) {
     .Call(`_rliger_DirectSNNToFile`, nn_ranked, prune, display_progress, filename)
 }
 
-cpp_rank_matrix_dgc <- function(x, p, nrow, ncol) {
-    .Call(`_rliger_cpp_rank_matrix_dgc`, x, p, nrow, ncol)
+cpp_rank_matrix_dgc <- function(x, p, nrow, ncol, showProgress = FALSE) {
+    .Call(`_rliger_cpp_rank_matrix_dgc`, x, p, nrow, ncol, showProgress)
 }
 
 rowAggregateSum_sparse <- function(X, groups, ngroups) {

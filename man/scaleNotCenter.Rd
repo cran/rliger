@@ -3,6 +3,7 @@
 \name{scaleNotCenter}
 \alias{scaleNotCenter}
 \alias{scaleNotCenter.dgCMatrix}
+\alias{scaleNotCenter.DelayedArray}
 \alias{scaleNotCenter.ligerDataset}
 \alias{scaleNotCenter.ligerMethDataset}
 \alias{scaleNotCenter.liger}
@@ -11,12 +12,24 @@
 \usage{
 scaleNotCenter(object, ...)
 
-\method{scaleNotCenter}{dgCMatrix}(object, ...)
+\method{scaleNotCenter}{dgCMatrix}(object, features, scaleFactor = NULL, ...)
+
+\method{scaleNotCenter}{DelayedArray}(
+  object,
+  features,
+  scaleFactor = NULL,
+  geneRootMeanSq = NULL,
+  overwrite = FALSE,
+  chunk = getOption("ligerChunkSize", 20000),
+  verbose = getOption("ligerVerbose", TRUE),
+  ...
+)
 
 \method{scaleNotCenter}{ligerDataset}(
   object,
   features = NULL,
-  chunk = 1000,
+  scaleFactor = NULL,
+  chunk = getOption("ligerChunkSize", 20000),
   verbose = getOption("ligerVerbose", TRUE),
   ...
 )
@@ -61,8 +74,24 @@ feature to be scaled. "liger" method by default uses
 features. "Seurat" method by default uses
 \code{Seurat::VariableFeatures(object)}.}
 
+\item{scaleFactor}{Numeric vector of scaling factor to normalize the raw
+counts to unit sum. This pre-calculated at liger object creation (stored as
+\code{object$nUMI} and internally specified in S3 method chains, thus is
+generally not needed to be specified by users.}
+
+\item{geneRootMeanSq}{Numeric vector of root-mean-square of unit-normalized
+expression for each gene. This is pre-calculated at the call of
+\code{\link{selectBatchHVG}} (stored at
+\code{featureMeta(dataset(object, "datasetName"))$rootMeanSq} and internally
+specified in S3 method chains, thus is generally not needed to be specified
+by users.}
+
+\item{overwrite}{Logical. When writing newly computed HDF5 array to a
+separate HDF5 file, whether to overwrite the existing file. Default
+\code{FALSE} raises an error when the file already exists.}
+
 \item{chunk}{Integer. Number of maximum number of cells in each chunk, when
-scaling is applied to any HDF5 based dataset. Default \code{1000}.}
+scaling is applied to any HDF5 based dataset. Default \code{20000}.}
 
 \item{verbose}{Logical. Whether to show information of the progress. Default
 \code{getOption("ligerVerbose")} or \code{TRUE} if users have not set.}
@@ -143,7 +172,6 @@ and then \code{\link{reverseMethData}(lig, useDataset = c("meth", "datasets"))}.
 }
 
 \examples{
-pbmc <- normalize(pbmc)
-pbmc <- selectGenes(pbmc)
+pbmc <- selectBatchHVG(pbmc, n = 10)
 pbmc <- scaleNotCenter(pbmc)
 }

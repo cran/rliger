@@ -1,17 +1,37 @@
 ## rliger Next
 
 - Standardized H5 IO specification that can be shared with other platforms.
-  - Will move to use HDF5Array (TENxMatrix, H5ADMatrix)/ or BPCells for backed data representation, depending on easiness, cleanliness and future-sustainability of the implementation and cross-platform interoperability.
+  - ~~Will move to use HDF5Array (TENxMatrix, H5ADMatrix)/ or BPCells for backed data representation, depending on easiness, cleanliness and future-sustainability of the implementation and cross-platform interoperability.~~
   - Read feature metadata (e.g. id, name, ...) if available; Allow setting "id" as rownames, "name" for visualization.
   - rawData - coming from the original input, read only (qc filtering should be just stored in the object, no IO)
-  - preprocessing metrics - nUMI, nGene and etc, still go "chunkApply" so the file is read only once
-  - normData - delayed computed data from rawData, no on disk representation
-  - scaleData - new on-disk file and then create object back, because RcppPlanc won't be able to handle delayed computation
+  - ~~preprocessing metrics - nUMI, nGene and etc, still go "chunkApply" so the file is read only once~~
+  - ~~normData - delayed computed data from rawData, no on disk representation~~
+  - ~~scaleData - new on-disk file and then create object back, because RcppPlanc won't be able to handle delayed computation~~
 - Ability to reorganize datasets
   - Allow doing something like `reorganize(ligerObj, variable = "somethingNotDataset")` and resulting in a new liger object with different ligerDataset grouping.
 - Ability to do downstream analysis on H5 data
   - Pseudo-bulk should be easy because we are just aggregating cells.
-  - Wilcoxon might be a bit harder because ranks are calculated per gene but the H5 sparse data is column majored. Might need to find a fast on-disk transposition method, which would also enhance RcppPlanc performance when running ANLS on H5 data.
+  - Wilcoxon might be a bit harder because ranks are calculated per gene but the 
+  H5 sparse data is column majored. Might need to find a fast on-disk 
+  transposition method, ~~which would also enhance RcppPlanc performance when 
+  running ANLS on H5 data~~.
+
+## rliger 2.2.0
+
+- Implemented highly efficient on-disk iNMF that scales to a million cells using
+slightly more time than in-memory version, requiring only laptop-level memory.
+- Added 10X H5 data and H5AD loading function that loads the data into regular dgCMatrix 
+in memory or the DelayedArray representation backed on disk, the latter is used
+for on-disk iNMF implementation.
+- Added `selectBatchHVG()` which implements another HVG selection strategy, credit to SCIB
+- Adding `suggestK()` back with new methodology
+- Clarified optimal `runGOEnrich()` workflow and added fold enrichment metric in 
+the returned result
+- Fixed important bug in online iNMF scenario 2
+- Fixed multiple problems related to ATAC analysis
+  - Fixed Wilcoxon rank-sum test bug when using ATAC peak counts
+  - Fixed gene coordinate parsing bug from BED file
+  - Optimized peak parsing speed
 
 ## rliger 2.1.0
 

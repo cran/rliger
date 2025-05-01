@@ -5,17 +5,6 @@ withNewH5Copy <- function(fun) {
     stimpath.orig <- system.file("extdata/stim.h5", package = "rliger")
     if (!file.exists(ctrlpath.orig))
         stop("Cannot find original h5 file at: ", ctrlpath.orig)
-    # if (file.exists("ctrltest.h5")) file.remove("ctrltest.h5")
-    # if (file.exists("stimtest.h5")) file.remove("stimtest.h5")
-    # pwd <- getwd()
-    # # Temp setting for GitHub Actions
-    # fsep <- ifelse(Sys.info()["sysname"] == "Windows", "\\", "/")
-    # if (Sys.info()["sysname"] == "Windows") {
-    #     pwd <- file.path("C:\\Users", Sys.info()["user"], "Documents", fsep = fsep)
-    # }
-
-    # ctrlpath <- file.path(pwd, "ctrltest.h5", fsep = fsep)
-    # stimpath <- file.path(pwd, "stimtest.h5", fsep = fsep)
     ctrlpath <- tempfile(pattern = "ctrltest_", fileext = ".h5")
     stimpath <- tempfile(pattern = "stimtest_", fileext = ".h5")
     cat("Working ctrl H5 file path: ", ctrlpath, "\n")
@@ -26,20 +15,11 @@ withNewH5Copy <- function(fun) {
         stop("Cannot find copied h5 file at: ", ctrlpath)
     if (!file.exists(stimpath))
         stop("Cannot find copied h5 file at: ", stimpath)
-
+    on.exit({
+        if (file.exists(ctrlpath)) unlink(ctrlpath)
+        if (file.exists(stimpath)) unlink(stimpath)
+    })
     fun(list(ctrl = ctrlpath, stim = stimpath))
-
-    if (file.exists(ctrlpath)) unlink(ctrlpath)
-    if (file.exists(stimpath)) unlink(stimpath)
-}
-
-closeH5Liger <- function(object) {
-    for (d in names(object)) {
-        if (isH5Liger(object, d)) {
-            h5file <- getH5File(object, d)
-            h5file$close()
-        }
-    }
 }
 
 expect_gg <- function(...) {
@@ -152,8 +132,9 @@ test_that("ggplot themes", {
                           xlab = NULL, ylab = NULL,
                           panelBorder = TRUE,
                           colorLabels = letters[1:nCluster],
-                          colorValues = RColorBrewer::brewer.pal(nCluster,
-                                                                 "Set1"),
+                          colorValues = c("#E41A1C", "#377EB8", "#4DAF4A",
+                                          "#984EA3", "#FF7F00", "#FFFF33",
+                                          "#A65628", "#F781BF"),
                           showLegend = FALSE),
         plotTotalCountViolin(pbmcPlot, colorBy = "dataset",
                              colorLabel = letters[1:2],

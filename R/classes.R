@@ -1,23 +1,26 @@
+#' @importClassesFrom Matrix dgCMatrix dgTMatrix dgeMatrix
+#' @importClassesFrom DelayedArray DelayedArray
+#' @importClassesFrom HDF5Array HDF5Array
+NULL
+
 setClassUnion("dgCMatrix_OR_NULL", c("dgCMatrix", "NULL"))
 setClassUnion("matrix_OR_NULL", c("matrix", "NULL"))
-setClassUnion("matrixLike", c("matrix", "dgCMatrix", "dgTMatrix", "dgeMatrix"))
+setClassUnion("matrixLike", c("matrix", "dgCMatrix", "dgTMatrix", "dgeMatrix", "DelayedArray"))
 setClassUnion("matrixLike_OR_NULL", c("matrixLike", "NULL"))
 setClassUnion("character_OR_NULL", c("character", "NULL"))
 # It is quite hard to handle "H5D here, which is indeed defined as an R6 class.
 # I'm not sure if this is a proper solution
-setOldClass("H5D")
-setOldClass("H5Group")
-suppressWarnings(setClassUnion("dgCMatrix_OR_H5D_OR_NULL", c("dgCMatrix", "H5D", "NULL")))
-setClassUnion("matrix_OR_H5D_OR_NULL", c("matrix", "H5D", "NULL"))
-setClassUnion("matrixLike_OR_H5D_OR_H5Group_OR_NULL", c("matrixLike", "H5D", "H5Group", "NULL"))
+# setOldClass("H5D")
+# setOldClass("H5Group")
+# suppressWarnings(setClassUnion("dgCMatrix_OR_H5D_OR_NULL", c("dgCMatrix", "H5D", "NULL")))
+# setClassUnion("matrix_OR_H5D_OR_NULL", c("matrix", "H5D", "NULL"))
+# setClassUnion("matrixLike_OR_H5D_OR_H5Group_OR_NULL", c("matrixLike", "H5D", "H5Group", "NULL"))
 setClassUnion("index",
               members = c("logical", "numeric", "character"))
 setClassUnion("Number_or_NULL", c("integer", "numeric", "NULL"))
 setClassUnion("dataframe", c("data.frame", "DataFrame", "NULL", "missing"))
 setClassUnion("missing_OR_NULL", c("missing", "NULL"))
-
-#' @importClassesFrom Matrix dgCMatrix dgTMatrix dgeMatrix
-NULL
+# setOldClass("H5Group")
 
 
 #' ligerDataset class
@@ -54,10 +57,10 @@ NULL
 ligerDataset <- setClass(
     "ligerDataset",
     representation(
-        rawData = "dgCMatrix_OR_H5D_OR_NULL",
-        normData = "dgCMatrix_OR_H5D_OR_NULL",
-        scaleData = "matrixLike_OR_H5D_OR_H5Group_OR_NULL",
-        scaleUnsharedData = "matrixLike_OR_H5D_OR_H5Group_OR_NULL",
+        rawData = "ANY",
+        normData = "ANY",
+        scaleData = "ANY",
+        scaleUnsharedData = "ANY",
         varUnsharedFeatures = "character",
         H = "matrix_OR_NULL",
         V = "matrix_OR_NULL",
