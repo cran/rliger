@@ -57,9 +57,9 @@ to interrupt the progress (e.g. Ctrl+C) and the function will still return
 the recorded objective errors already completed.
 }
 \examples{
+\donttest{
 pbmcPlot <- scaleNotCenter(pbmcPlot)
 # Minimum test example, not for demonstrative recommendation
-\donttest{
 suggests <- suggestK(
     object = pbmcPlot,
     kTest = c(2, 3),

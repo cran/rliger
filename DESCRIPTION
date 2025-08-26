@@ -1,6 +1,6 @@
 Package: rliger
-Version: 2.2.0
-Date: 2025-05-01
+Version: 2.2.1
+Date: 2025-08-26
 Type: Package
 Title: Linked Inference of Genomic Experimental Relationships
 Description: Uses an extension of nonnegative matrix factorization to identify shared and dataset-specific factors. See Welch J, Kozareva V, et al (2019) <doi:10.1016/j.cell.2019.05.006>, and Liu J, Gao C, Sodicoff J, et al (2020) <doi:10.1038/s41596-020-0391-8> for more details.
@@ -49,6 +49,6 @@ Suggests: AnnotationDbi, circlize, ComplexHeatmap, cowplot, DESeq2,
         SeuratObject, SingleCellExperiment, SummarizedExperiment,
         testthat, viridis
 NeedsCompilation: yes
-Packaged: 2025-05-01 16:01:34 UTC; wangych
+Packaged: 2025-08-26 17:18:06 UTC; wangych
 Repository: CRAN
-Date/Publication: 2025-05-01 22:40:02 UTC
+Date/Publication: 2025-08-26 17:50:02 UTC

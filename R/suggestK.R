@@ -32,9 +32,9 @@
 #' for each k value. The left y-axis corresponds to the dots and bands, the
 #' right second y-axis maps to the blue line that stands for the variance. }
 #' @examples
+#' \donttest{
 #' pbmcPlot <- scaleNotCenter(pbmcPlot)
 #' # Minimum test example, not for demonstrative recommendation
-#' \donttest{
 #' suggests <- suggestK(
 #'     object = pbmcPlot,
 #'     kTest = c(2, 3),
